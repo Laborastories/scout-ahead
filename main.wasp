@@ -153,3 +153,25 @@ job fetchChampionsJob {
   entities: [Champion]
 }
 
+job fetchChampionImagesJob {
+  executor: PgBoss,
+  schedule: {
+    cron: "0 * * * *", 
+    args: {=json {} json=}
+  },
+  perform: {
+    fn: import { fetchChampionImages } from "@src/server/jobs/championImages.ts",
+  },
+  entities: [Champion]
+}
+
+action triggerChampionUpdate {
+  fn: import { triggerChampionUpdate } from "@src/admin/operations.ts",
+  entities: [Champion]
+}
+
+action triggerChampionImageUpdate {
+  fn: import { triggerChampionImageUpdate } from "@src/admin/operations.ts",
+  entities: [Champion]
+}
+

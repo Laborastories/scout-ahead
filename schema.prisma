@@ -71,5 +71,7 @@ model Champion {
   tags        String[] // Champion tags (e.g. ["Fighter", "Tank"])
   roles       String[] // Champion roles (e.g. ["top", "mid"])
   splashPath  String?
+  iconKey     String?  // S3 key for icon (e.g. "champs/icon/Aatrox.webp")
+  splashKey   String?  // S3 key for splash art (e.g. "champs/splash/Aatrox.webp")
   updatedAt   DateTime @updatedAt
 }

@@ -1,6 +1,11 @@
 import { HttpError } from 'wasp/server'
 import { type GetAdminStats } from 'wasp/server/operations'
 import { subHours, startOfDay } from 'date-fns'
+import {
+  type TriggerChampionUpdate,
+  type TriggerChampionImageUpdate,
+} from './types'
+import { fetchChampionsJob, fetchChampionImagesJob } from 'wasp/server/jobs'
 
 type UserWithSeries = {
   id: string
@@ -24,12 +29,27 @@ type SeriesWithTeams = {
   status: string
 }
 
-export const getAdminStats = (async (args, context) => {
+type AdminStatsArgs = {
+  draftsPage: number
+  draftsPerPage: number
+  usersPage: number
+  usersPerPage: number
+}
+
+export const getAdminStats = (async (args: AdminStatsArgs, context) => {
   if (!context.user?.isAdmin) {
     throw new HttpError(401, 'Unauthorized')
   }
 
-  // Get all users with their draft and game counts
+  // Calculate pagination offsets
+  const draftsSkip = (args.draftsPage - 1) * args.draftsPerPage
+  const usersSkip = (args.usersPage - 1) * args.usersPerPage
+
+  // Get total counts first
+  const totalUsers = await context.entities.User.count()
+  const totalDrafts = await context.entities.Series.count()
+
+  // Get paginated users with their draft and game counts
   const users = (await context.entities.User.findMany({
     select: {
       id: true,
@@ -50,9 +70,11 @@ export const getAdminStats = (async (args, context) => {
     orderBy: {
       createdAt: 'desc',
     },
+    skip: usersSkip,
+    take: args.usersPerPage,
   })) as UserWithSeries[]
 
-  // Get recent drafts
+  // Get paginated recent drafts
   const recentDrafts = (await context.entities.Series.findMany({
     select: {
       id: true,
@@ -61,12 +83,29 @@ export const getAdminStats = (async (args, context) => {
       team2Name: true,
       format: true,
       status: true,
+      fearlessDraft: true,
+      scrimBlock: true,
+      team1AuthToken: true,
+      team2AuthToken: true,
+      creator: {
+        select: {
+          username: true,
+          email: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'desc',
     },
-    take: 10,
-  })) as SeriesWithTeams[]
+    skip: draftsSkip,
+    take: args.draftsPerPage,
+  })) as (SeriesWithTeams & {
+    fearlessDraft: boolean
+    scrimBlock: boolean
+    team1AuthToken: string
+    team2AuthToken: string
+    creator: { username: string; email: string } | null
+  })[]
 
   // Get active users in last 24h
   const activeUsers24h = await context.entities.User.count({
@@ -84,9 +123,6 @@ export const getAdminStats = (async (args, context) => {
     },
   })
 
-  // Get total drafts
-  const totalDrafts = await context.entities.Series.count()
-
   // Get drafts created today
   const draftsToday = await context.entities.Series.count({
     where: {
@@ -97,7 +133,7 @@ export const getAdminStats = (async (args, context) => {
   })
 
   return {
-    totalUsers: users.length,
+    totalUsers,
     totalDrafts,
     totalGamesPlayed,
     activeUsers24h,
@@ -121,8 +157,47 @@ export const getAdminStats = (async (args, context) => {
       team2Name: draft.team2Name,
       format: draft.format,
       status: draft.status,
+      fearlessDraft: draft.fearlessDraft,
+      scrimBlock: draft.scrimBlock,
+      team1AuthToken: draft.team1AuthToken,
+      team2AuthToken: draft.team2AuthToken,
+      creator: draft.creator,
     })),
   }
-}) satisfies GetAdminStats<void, any>
+}) satisfies GetAdminStats<AdminStatsArgs, any>
+
+export const triggerChampionUpdate: TriggerChampionUpdate = async (
+  args,
+  context,
+) => {
+  if (!context.user?.isAdmin) {
+    throw new Error('Unauthorized')
+  }
+
+  try {
+    await fetchChampionsJob.submit({})
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to trigger champion update:', error)
+    throw new Error('Failed to trigger champion update')
+  }
+}
+
+export const triggerChampionImageUpdate: TriggerChampionImageUpdate = async (
+  args,
+  context,
+) => {
+  if (!context.user?.isAdmin) {
+    throw new Error('Unauthorized')
+  }
+
+  try {
+    await fetchChampionImagesJob.submit({})
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to trigger champion image update:', error)
+    throw new Error('Failed to trigger champion image update')
+  }
+}
 
 export type GetAdminStatsOperation = typeof getAdminStats

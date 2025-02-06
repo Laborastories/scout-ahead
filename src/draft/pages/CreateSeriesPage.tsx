@@ -1,8 +1,10 @@
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
 import { createSeries } from 'wasp/client/operations'
+import { type CreateSeries } from 'wasp/server/operations'
 import { motion } from 'motion/react'
 import { Input } from '../../client/components/ui/input'
 import { Button } from '../../client/components/ui/button'
+import { z } from 'zod'
 import {
   Copy,
   Check,
@@ -19,15 +21,41 @@ import {
 } from '../../client/components/ui/tooltip'
 import { cn } from '../../lib/utils'
 import { Link } from 'wasp/client/router'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../../client/components/ui/form'
 
-type SeriesArgs = {
-  team1Name: string
-  team2Name: string
-  matchName: string
-  format: 'BO1' | 'BO3' | 'BO5'
-  fearlessDraft: boolean
-  scrimBlock: boolean
-}
+type SeriesArgs = Parameters<CreateSeries>[0]
+
+type FormData = z.infer<typeof seriesSchema>
+
+const seriesSchema = z
+  .object({
+    team1Name: z.string().trim().min(1, 'Team 1 name cannot be empty'),
+    team2Name: z.string().trim().min(1, 'Team 2 name cannot be empty'),
+    matchName: z.string().trim().min(1, 'Match name cannot be empty'),
+    format: z.enum(['BO1', 'BO3', 'BO5']),
+    fearlessDraft: z.boolean(),
+    scrimBlock: z.boolean(),
+  })
+  .refine(
+    data => {
+      const team1Normalized = data.team1Name.toLowerCase().replace(/\s+/g, '')
+      const team2Normalized = data.team2Name.toLowerCase().replace(/\s+/g, '')
+      return team1Normalized !== team2Normalized
+    },
+    {
+      message: 'Team names must be different (ignoring spaces and case)',
+      path: ['team2Name'],
+    },
+  )
 
 const ScrollIndicator = () => (
   <motion.div
@@ -46,33 +74,8 @@ const ScrollIndicator = () => (
   </motion.div>
 )
 
-const validateTeamNames = (
-  team1: string,
-  team2: string,
-): { isValid: boolean; error: string } => {
-  // Trim whitespace from both names
-  const cleanTeam1 = team1.trim()
-  const cleanTeam2 = team2.trim()
-
-  // Check for empty or whitespace-only names
-  if (!cleanTeam1 || !cleanTeam2) {
-    return { isValid: false, error: 'Team names cannot be empty' }
-  }
-
-  // Check if names are the same (case-insensitive)
-  if (cleanTeam1.toLowerCase() === cleanTeam2.toLowerCase()) {
-    return { isValid: false, error: 'Team names must be different' }
-  }
-
-  return { isValid: true, error: '' }
-}
-
 export function CreateSeriesPage() {
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [seriesFormat, setSeriesFormat] = useState<'BO1' | 'BO3' | 'BO5'>('BO3')
-  const [fearlessDraft, setFearlessDraft] = useState(false)
-  const [scrimBlock, setScrimBlock] = useState(false)
   const [copied, setCopied] = useState(false)
   const [createdDraft, setCreatedDraft] = useState<{
     urls: {
@@ -86,6 +89,19 @@ export function CreateSeriesPage() {
     fearlessDraft: boolean
     scrimBlock: boolean
   } | null>(null)
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(seriesSchema),
+    defaultValues: {
+      team1Name: '',
+      team2Name: '',
+      matchName: '',
+      format: 'BO3',
+      fearlessDraft: false,
+      scrimBlock: false,
+    },
+    mode: 'onSubmit',
+  })
 
   const handleCopyAll = () => {
     if (!createdDraft) return
@@ -121,63 +137,27 @@ ${createdDraft.urls.spectatorUrl}`
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const onSubmit = async (data: FormData) => {
     setError('')
     setCreatedDraft(null)
 
-    const formData = new FormData(e.currentTarget)
-    const team1Name = (formData.get('team1Name') as string).trim()
-    const team2Name = (formData.get('team2Name') as string).trim()
-    const matchName = (formData.get('matchName') as string).trim()
-
-    // Validate team names
-    const { isValid, error: teamNameError } = validateTeamNames(
-      team1Name,
-      team2Name,
-    )
-    if (!isValid) {
-      setError(teamNameError)
-      setIsLoading(false)
-      return
-    }
-
-    // Validate match name
-    if (!matchName) {
-      setError('Match name cannot be empty')
-      setIsLoading(false)
-      return
-    }
-
-    const data: SeriesArgs = {
-      team1Name,
-      team2Name,
-      matchName,
-      format: seriesFormat,
-      fearlessDraft,
-      scrimBlock,
-    }
-
     try {
-      const series = await createSeries(data)
+      const series = await createSeries(data as SeriesArgs)
       const baseUrl = window.location.origin
       setCreatedDraft({
         urls: {
           blueUrl: `${baseUrl}/draft/${series.id}/1/team1/${series.team1AuthToken}`,
           redUrl: `${baseUrl}/draft/${series.id}/1/team2/${series.team2AuthToken}`,
           spectatorUrl: `${baseUrl}/draft/${series.id}/1`,
-          team1Name,
-          team2Name,
+          team1Name: data.team1Name,
+          team2Name: data.team2Name,
         },
-        format: seriesFormat,
-        fearlessDraft,
-        scrimBlock,
+        format: data.format,
+        fearlessDraft: data.fearlessDraft,
+        scrimBlock: data.scrimBlock,
       })
     } catch (err: any) {
       setError(err.message || 'Failed to create series')
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -208,190 +188,228 @@ ${createdDraft.urls.spectatorUrl}`
         animate={{ opacity: 1, y: 0 }}
         className='w-full max-w-[480px] font-sans'
       >
-        <form onSubmit={handleSubmit} className='relative space-y-4'>
-          <div className='grid grid-cols-2 gap-4'>
-            <div>
-              <label htmlFor='team1Name' className='text-sm font-medium'>
-                Team 1
-              </label>
-              <Input
-                type='text'
-                name='team1Name'
-                id='team1Name'
-                required
-                className='mt-1'
-                placeholder='e.g. Cloud9'
-                onChange={e => {
-                  // Remove leading/trailing whitespace as they type
-                  e.target.value = e.target.value.trim()
-                }}
-              />
-            </div>
-
-            <div>
-              <label htmlFor='team2Name' className='text-sm font-medium'>
-                Team 2
-              </label>
-              <Input
-                type='text'
-                name='team2Name'
-                id='team2Name'
-                required
-                className='mt-1'
-                placeholder='e.g. Team Liquid'
-                onChange={e => {
-                  // Remove leading/trailing whitespace as they type
-                  e.target.value = e.target.value.trim()
-                }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor='matchName' className='text-sm font-medium'>
-              Match Name
-            </label>
-            <Input
-              type='text'
-              name='matchName'
-              id='matchName'
-              required
-              className='mt-1'
-              placeholder='e.g. LCS Summer 2024 - Week 1'
-            />
-          </div>
-
-          <div>
-            <label className='text-sm font-medium'>Series Format</label>
-            <div className='mt-2 grid grid-cols-3 gap-2'>
-              <button
-                type='button'
-                onClick={() => setSeriesFormat('BO1')}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
-                  seriesFormat === 'BO1'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border',
-                )}
-              >
-                <div className='flex items-center gap-1'>
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                </div>
-                <span className='text-sm font-medium'>BO1</span>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setSeriesFormat('BO3')}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
-                  seriesFormat === 'BO3'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border',
-                )}
-              >
-                <div className='flex items-center gap-1'>
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                </div>
-                <span className='text-sm font-medium'>BO3</span>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setSeriesFormat('BO5')}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
-                  seriesFormat === 'BO5'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border',
-                )}
-              >
-                <div className='flex items-center gap-1'>
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                  <div className='h-2 w-2 rounded-full bg-primary' />
-                </div>
-                <span className='text-sm font-medium'>BO5</span>
-              </button>
-            </div>
-          </div>
-
-          <div className='space-y-2 pt-2'>
-            <label className='text-sm font-medium'>Features</label>
-            <div className='grid grid-cols-2 gap-2'>
-              <button
-                type='button'
-                onClick={() => setFearlessDraft(!fearlessDraft)}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
-                  fearlessDraft
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border',
-                )}
-              >
-                <span className='rounded-sm bg-amber-950 px-1 py-0.5 font-sans text-xs font-medium text-amber-500'>
-                  F
-                </span>
-                <span className='text-sm font-medium'>Fearless Draft</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <span>Champions can only be picked once</span>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => setScrimBlock(!scrimBlock)}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
-                  scrimBlock ? 'border-primary bg-primary/5' : 'border-border',
-                )}
-              >
-                <span className='rounded-sm bg-indigo-950 px-1 py-0.5 font-sans text-xs font-medium text-indigo-400'>
-                  S
-                </span>
-                <span className='text-sm font-medium'>Scrim Block</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <span>
-                        Automatically start next game after each draft
-                      </span>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </button>
-            </div>
-          </div>
-
-          <Button
-            type='submit'
-            className='mt-6 w-full'
-            disabled={isLoading}
-            size='lg'
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className='relative space-y-4'
           >
-            Create Draft
-          </Button>
+            <div className='grid grid-cols-2 gap-4'>
+              <FormField
+                control={form.control}
+                name='team1Name'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Team 1</FormLabel>
+                    <FormControl>
+                      <Input type='text' placeholder='e.g. Cloud9' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          {error && (
-            <p className='text-center text-sm font-medium text-destructive'>
-              {error}
-            </p>
-          )}
-        </form>
+              <FormField
+                control={form.control}
+                name='team2Name'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Team 2</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='text'
+                        placeholder='e.g. Team Liquid'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name='matchName'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Match Name</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='text'
+                      placeholder='e.g. LCS Summer 2025 - Week 1'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='format'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Series Format</FormLabel>
+                  <div className='mt-2 grid grid-cols-3 gap-2'>
+                    <button
+                      type='button'
+                      onClick={() => field.onChange('BO1')}
+                      className={cn(
+                        'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                        field.value === 'BO1'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border',
+                      )}
+                    >
+                      <div className='flex items-center gap-1'>
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                      </div>
+                      <span className='text-sm font-medium'>BO1</span>
+                    </button>
+
+                    <button
+                      type='button'
+                      onClick={() => field.onChange('BO3')}
+                      className={cn(
+                        'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                        field.value === 'BO3'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border',
+                      )}
+                    >
+                      <div className='flex items-center gap-1'>
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                      </div>
+                      <span className='text-sm font-medium'>BO3</span>
+                    </button>
+
+                    <button
+                      type='button'
+                      onClick={() => field.onChange('BO5')}
+                      className={cn(
+                        'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                        field.value === 'BO5'
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border',
+                      )}
+                    >
+                      <div className='flex items-center gap-1'>
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                        <div className='h-2 w-2 rounded-full bg-primary' />
+                      </div>
+                      <span className='text-sm font-medium'>BO5</span>
+                    </button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='space-y-2 pt-2'>
+              <FormLabel>Features</FormLabel>
+              <div className='grid grid-cols-2 gap-2'>
+                <FormField
+                  control={form.control}
+                  name='fearlessDraft'
+                  render={({ field }) => (
+                    <FormItem className='w-full'>
+                      <FormControl className='w-full'>
+                        <button
+                          type='button'
+                          onClick={() => field.onChange(!field.value)}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                            field.value
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border',
+                          )}
+                        >
+                          <span className='rounded-sm bg-amber-950 px-1 py-0.5 font-sans text-xs font-medium text-amber-500'>
+                            F
+                          </span>
+                          <span className='text-sm font-medium'>
+                            Fearless Draft
+                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <span>Champions can only be picked once</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </button>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='scrimBlock'
+                  render={({ field }) => (
+                    <FormItem className='w-full'>
+                      <FormControl className='w-full'>
+                        <button
+                          type='button'
+                          onClick={() => field.onChange(!field.value)}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                            field.value
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border',
+                          )}
+                        >
+                          <span className='rounded-sm bg-indigo-950 px-1 py-0.5 font-sans text-xs font-medium text-indigo-400'>
+                            S
+                          </span>
+                          <span className='text-sm font-medium'>
+                            Scrim Block
+                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <span>
+                                  Automatically start next game after each draft
+                                </span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </button>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <Button
+              type='submit'
+              className='mt-6 w-full'
+              disabled={form.formState.isSubmitting}
+              size='lg'
+            >
+              Create Draft
+            </Button>
+
+            {error && (
+              <p className='text-center text-sm font-medium text-destructive'>
+                {error}
+              </p>
+            )}
+          </form>
+        </Form>
 
         {createdDraft && (
           <motion.div

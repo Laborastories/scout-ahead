@@ -1,27 +1,71 @@
 import { getChampionsFromDb } from 'wasp/client/operations'
-import { type Champion as ChampionEntity } from 'wasp/entities'
+
+// Add retry utility at the top
+async function fetchWithRetry<T>(
+  url: string,
+  maxRetries = 3,
+  initialDelay = 1000,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return (await response.json()) as T
+    } catch (error) {
+      if (attempt === maxRetries) throw error
+      const delay = initialDelay * Math.pow(2, attempt - 1)
+      console.log(
+        `DDragon version fetch attempt ${attempt} failed, retrying in ${delay}ms...`,
+      )
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error('All retry attempts failed')
+}
 
 const COMMUNITY_DRAGON_URL =
   'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/'
 
-let DDRAGON_VERSION = '15.1.1' // Fallback version
+const S3_BASE_URL =
+  import.meta.env.REACT_APP_S3_BASE_URL ||
+  'https://scoutahead-dev.s3.amazonaws.com'
 
-// Initialize DDragon version
-fetch('https://ddragon.leagueoflegends.com/api/versions.json')
-  .then(response => response.json())
+export let DDRAGON_VERSION = '15.1.1' // Fallback version
+
+// Initialize DDragon version with retry
+fetchWithRetry<string[]>(
+  'https://ddragon.leagueoflegends.com/api/versions.json',
+)
   .then(versions => {
     DDRAGON_VERSION = versions[0]
   })
   .catch(error => {
-    console.error('Failed to fetch DDragon version:', error)
+    console.error('Failed to fetch DDragon version after retries:', error)
   })
 
 export type ChampionRole = 'top' | 'jungle' | 'mid' | 'bot' | 'support'
-export interface Champion extends ChampionEntity {}
+export interface Champion {
+  id: string
+  key: string
+  name: string
+  tags: string[]
+  roles: string[]
+  splashPath: string | null
+  iconKey: string | null
+  splashKey: string | null
+  updatedAt: Date
+}
 
 export async function getChampions(): Promise<Champion[]> {
   try {
-    return await getChampionsFromDb()
+    const champions = await getChampionsFromDb()
+    return champions.map(champion => ({
+      ...champion,
+      iconKey: champion.iconKey || null,
+      splashKey: champion.splashKey || null,
+    }))
   } catch (error) {
     console.error('Failed to fetch champions:', error)
     return []
@@ -32,27 +76,38 @@ export function getChampionImageUrl(
   champion: Champion | string,
   type: 'icon' | 'splash' = 'icon',
 ): string {
-  // For icons, just use DDragon with champion ID
+  // If we have a champion object, check for S3 keys first
+  if (typeof champion !== 'string') {
+    // For icons, use iconKey if available
+    if (type === 'icon' && champion.iconKey) {
+      return `${S3_BASE_URL}/${champion.iconKey}`
+    }
+    // For splash art, use splashKey if available
+    if (type === 'splash' && champion.splashKey) {
+      return `${S3_BASE_URL}/${champion.splashKey}`
+    }
+  }
+
+  // Get the champion ID for fallback URLs
+  const championId = typeof champion === 'string' ? champion : champion.id
+
+  // Fallback to DDragon for icons
   if (type === 'icon') {
-    const championId = typeof champion === 'string' ? champion : champion.id
-    const iconUrl = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${championId}.png`
-    return iconUrl
+    return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${championId}.png`
   }
 
   // For splash art, we need the champion object with splashPath
   if (typeof champion === 'string') {
-    console.warn(
-      'String champion ID provided for splash art - need champion object with splashPath',
-    )
-    return ''
+    return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${championId}_0.jpg`
   }
 
-  if (!champion.splashPath) {
-    console.warn('No splashPath found in champion object:', champion)
-    return ''
+  // Fallback to Community Dragon for splash art if we have splashPath
+  if (champion.splashPath) {
+    return `${COMMUNITY_DRAGON_URL}${champion.splashPath}`
   }
 
-  return `${COMMUNITY_DRAGON_URL}${champion.splashPath}`
+  // Final fallback for splash art if no other options work
+  return `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champion.id}_0.jpg`
 }
 
 export function filterChampions(

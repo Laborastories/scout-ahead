@@ -74,3 +74,28 @@ Feel free to open an issue or submit a pull request on our
 MIT License - feel free to use this in your own projects!
 
 ![Format & Lint pipeline status](https://github.com/Laborastories/wardstone-pick-ban/actions/workflows/format.yml/badge.svg)
+
+## Champion Image Storage
+
+The app can store champion images (icons and splash art) in an S3 bucket for
+better performance and reliability. To set this up:
+
+1. Create an S3 bucket in your AWS account
+2. Set up the following environment variables:
+
+   ```
+   AWS_REGION=your-region # e.g. us-east-1
+   AWS_ACCESS_KEY_ID=your-access-key
+   AWS_SECRET_ACCESS_KEY=your-secret-key
+   AWS_BUCKET_NAME=your-bucket-name
+   AWS_BUCKET_URL=https://your-bucket-name.s3.amazonaws.com # or your CloudFront URL
+   ```
+
+3. The app will automatically:
+   - Download champion images from DDragon
+   - Convert them to WebP format for better performance
+   - Upload them to your S3 bucket
+   - Use the S3 URLs in the UI
+
+If S3 is not configured, the app will fall back to using DDragon and Community
+Dragon URLs directly.
