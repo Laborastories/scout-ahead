@@ -42,20 +42,11 @@ type GameWithRelations = Game & {
   }[]
 }
 
-interface TimerState {
-  turnStartedAt: number
-  phaseTimeLimit: number
-  remainingTime: number
-  lastUpdateTime: number
-}
-
-// Add timer update payload type
+// Remove these interfaces since we're not interpolating anymore
 type TimerUpdatePayload = {
   gameId: string
-  turnStartedAt: number
-  phaseTimeLimit: number
   remainingTime: number
-  lastUpdateTime: number
+  phaseTimeLimit: number
 }
 
 const ReadyStateIndicator = ({
@@ -123,7 +114,6 @@ export function DraftPage() {
     red?: boolean
   }>({})
   const [isTimerReady, setIsTimerReady] = useState(false)
-  const [lastTeam, setLastTeam] = useState<'BLUE' | 'RED' | null>(null)
   const { data: champions = [] } = useQuery(getChampionsFromDb)
   const championsMap = champions.reduce(
     (acc: Record<string, Champion>, champion: Champion) => {
@@ -132,7 +122,6 @@ export function DraftPage() {
     },
     {},
   )
-  const [timerState, setTimerState] = useState<TimerState | null>(null)
 
   // Set auth token and connect socket only once
   useEffect(() => {
@@ -172,73 +161,25 @@ export function DraftPage() {
   )
 
   useSocketListener('draftActionUpdate', () => {
-    setLastTeam(null)
     setIsTimerReady(false)
 
     // Always refetch on draft actions to ensure turn order is correct
     refetch()
   })
 
-  // Update useEffect for client-side timer interpolation
-  useEffect(() => {
-    if (!timerState) return
-
-    // Calculate time since last server update
-    const timeSinceUpdate = Math.floor(
-      (Date.now() - timerState.lastUpdateTime) / 1000,
-    )
-
-    // If we haven't received an update in more than 2 seconds, show loading state
-    if (timeSinceUpdate > 2) {
-      setTimeRemaining(prevTime =>
-        prevTime !== null ? prevTime : timerState.remainingTime,
-      )
-      return
-    }
-
-    // Interpolate the remaining time based on time since last update
-    const interpolatedTime = Math.max(
-      0,
-      timerState.remainingTime - timeSinceUpdate,
-    )
-    setTimeRemaining(interpolatedTime)
-
-    // Clear timer state if time is up or remaining time is 0
-    if (interpolatedTime <= 0 || timerState.remainingTime <= 0) {
-      setTimerState(null)
-      setTimeRemaining(0)
-    }
-  }, [timerState])
-
-  // Update socket listener for timer updates
+  // Simplify the socket listener to just use the server time directly
   useSocketListener(
     'timerUpdate',
     (data: ServerToClientPayload<'timerUpdate'>) => {
       if (!nextAction) return
 
       const timerData = data as unknown as TimerUpdatePayload
-
-      // If this is a new team's turn
-      if (lastTeam !== nextAction.team) {
-        setLastTeam(nextAction.team)
-        setTimerState({
-          turnStartedAt: timerData.turnStartedAt,
-          phaseTimeLimit: timerData.phaseTimeLimit,
-          remainingTime: timerData.remainingTime,
-          lastUpdateTime: timerData.lastUpdateTime,
-        })
+      
+      // Show 0 or the server's time
+      if (typeof timerData.remainingTime === 'number' && Number.isFinite(timerData.remainingTime)) {
+        setTimeRemaining(Math.max(0, timerData.remainingTime))
         setIsTimerReady(true)
-        return
       }
-
-      // Just update the timer state without resetting animation
-      setTimerState({
-        turnStartedAt: timerData.turnStartedAt,
-        phaseTimeLimit: timerData.phaseTimeLimit,
-        remainingTime: timerData.remainingTime,
-        lastUpdateTime: timerData.lastUpdateTime,
-      })
-      setIsTimerReady(true)
     },
   )
 

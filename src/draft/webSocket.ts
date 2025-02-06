@@ -33,10 +33,8 @@ export interface ServerToClientEvents {
   draftActionUpdate: (data: { gameId: string; action: DraftAction }) => void
   timerUpdate: (data: {
     gameId: string
-    turnStartedAt: number
-    phaseTimeLimit: number
     remainingTime: number
-    lastUpdateTime: number
+    phaseTimeLimit: number
   }) => void
   gameUpdated: (data: {
     gameId: string
@@ -133,17 +131,13 @@ async function startTimer(io: any, gameId: string) {
     delete activeTimers[gameId]
   }
 
-  // Start exactly at current second
-  const startTime = Math.floor(Date.now() / 1000) * 1000
-  const remainingTime = PHASE_TIME_LIMIT
-
-  // Store the turn start time and remaining time in Redis
-  await setGameTimer(gameId, {
-    turnStartedAt: startTime,
+  // Start at PHASE_TIME_LIMIT
+  const timerData = {
+    remainingTime: PHASE_TIME_LIMIT,
     phaseTimeLimit: PHASE_TIME_LIMIT,
-    remainingTime,
-    lastUpdateTime: Date.now(),
-  })
+  }
+  
+  await setGameTimer(gameId, timerData)
 
   // Initial broadcast
   await broadcastTimerUpdateToClients(io, gameId)
@@ -158,29 +152,27 @@ async function startTimer(io: any, gameId: string) {
     }
 
     const newRemainingTime = timer.remainingTime - 1
-
-    // Send final 0 update before clearing
+    
+    // Send final 0 update and keep it in Redis
     if (newRemainingTime <= 0) {
-      await setGameTimer(gameId, {
-        ...timer,
+      const finalUpdate = {
         remainingTime: 0,
-        lastUpdateTime: Date.now(),
-      })
+        phaseTimeLimit: PHASE_TIME_LIMIT,
+      }
+      await setGameTimer(gameId, finalUpdate)
       await broadcastTimerUpdateToClients(io, gameId)
 
       clearInterval(activeTimers[gameId])
       delete activeTimers[gameId]
-      await clearGameTimer(gameId)
       return
     }
 
-    // Update Redis with new remaining time and timestamp
-    await setGameTimer(gameId, {
-      ...timer,
+    // Update Redis with new remaining time
+    const update = {
       remainingTime: newRemainingTime,
-      lastUpdateTime: Date.now(),
-    })
-
+      phaseTimeLimit: PHASE_TIME_LIMIT,
+    }
+    await setGameTimer(gameId, update)
     await broadcastTimerUpdateToClients(io, gameId)
   }, 1000)
 
@@ -344,19 +336,11 @@ export const webSocketFn: WebSocketFn = (io, context) => {
   // Subscribe to Redis channels for cross-server communication
   subscriber.subscribe(CHANNELS.TIMER_UPDATE, message => {
     try {
-      const {
-        gameId,
-        turnStartedAt,
-        phaseTimeLimit,
-        remainingTime,
-        lastUpdateTime,
-      } = JSON.parse(message)
+      const { gameId, remainingTime, phaseTimeLimit } = JSON.parse(message)
       io.to(gameId).emit('timerUpdate', {
         gameId,
-        turnStartedAt,
-        phaseTimeLimit,
         remainingTime,
-        lastUpdateTime,
+        phaseTimeLimit,
       })
     } catch (error) {
       console.error('Error handling timer update:', error)

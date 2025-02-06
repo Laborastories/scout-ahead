@@ -46,6 +46,24 @@ const ScrollIndicator = () => (
   </motion.div>
 )
 
+const validateTeamNames = (team1: string, team2: string): { isValid: boolean; error: string } => {
+  // Trim whitespace from both names
+  const cleanTeam1 = team1.trim()
+  const cleanTeam2 = team2.trim()
+
+  // Check for empty or whitespace-only names
+  if (!cleanTeam1 || !cleanTeam2) {
+    return { isValid: false, error: 'Team names cannot be empty' }
+  }
+
+  // Check if names are the same (case-insensitive)
+  if (cleanTeam1.toLowerCase() === cleanTeam2.toLowerCase()) {
+    return { isValid: false, error: 'Team names must be different' }
+  }
+
+  return { isValid: true, error: '' }
+}
+
 export function CreateSeriesPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>('')
@@ -107,12 +125,21 @@ ${createdDraft.urls.spectatorUrl}`
     setCreatedDraft(null)
 
     const formData = new FormData(e.currentTarget)
-    const team1Name = formData.get('team1Name') as string
-    const team2Name = formData.get('team2Name') as string
-    const matchName = formData.get('matchName') as string
+    const team1Name = (formData.get('team1Name') as string).trim()
+    const team2Name = (formData.get('team2Name') as string).trim()
+    const matchName = (formData.get('matchName') as string).trim()
 
-    if (team1Name.toLowerCase() === team2Name.toLowerCase()) {
-      setError('Team names must be different')
+    // Validate team names
+    const { isValid, error: teamNameError } = validateTeamNames(team1Name, team2Name)
+    if (!isValid) {
+      setError(teamNameError)
+      setIsLoading(false)
+      return
+    }
+
+    // Validate match name
+    if (!matchName) {
+      setError('Match name cannot be empty')
       setIsLoading(false)
       return
     }
@@ -188,6 +215,10 @@ ${createdDraft.urls.spectatorUrl}`
                 required
                 className='mt-1'
                 placeholder='e.g. Cloud9'
+                onChange={e => {
+                  // Remove leading/trailing whitespace as they type
+                  e.target.value = e.target.value.trim()
+                }}
               />
             </div>
 
@@ -202,6 +233,10 @@ ${createdDraft.urls.spectatorUrl}`
                 required
                 className='mt-1'
                 placeholder='e.g. Team Liquid'
+                onChange={e => {
+                  // Remove leading/trailing whitespace as they type
+                  e.target.value = e.target.value.trim()
+                }}
               />
             </div>
           </div>
