@@ -46,7 +46,10 @@ const ScrollIndicator = () => (
   </motion.div>
 )
 
-const validateTeamNames = (team1: string, team2: string): { isValid: boolean; error: string } => {
+const validateTeamNames = (
+  team1: string,
+  team2: string,
+): { isValid: boolean; error: string } => {
   // Trim whitespace from both names
   const cleanTeam1 = team1.trim()
   const cleanTeam2 = team2.trim()
@@ -130,7 +133,10 @@ ${createdDraft.urls.spectatorUrl}`
     const matchName = (formData.get('matchName') as string).trim()
 
     // Validate team names
-    const { isValid, error: teamNameError } = validateTeamNames(team1Name, team2Name)
+    const { isValid, error: teamNameError } = validateTeamNames(
+      team1Name,
+      team2Name,
+    )
     if (!isValid) {
       setError(teamNameError)
       setIsLoading(false)

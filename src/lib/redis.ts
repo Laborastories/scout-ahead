@@ -184,10 +184,7 @@ export const CHANNELS = {
 } as const
 
 // Function to broadcast timer update across all servers
-export async function broadcastTimerUpdate(
-  gameId: string,
-  data: GameTimer,
-) {
+export async function broadcastTimerUpdate(gameId: string, data: GameTimer) {
   await publisher.publish(
     CHANNELS.TIMER_UPDATE,
     JSON.stringify({ gameId, ...data }),

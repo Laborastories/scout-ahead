@@ -136,7 +136,7 @@ async function startTimer(io: any, gameId: string) {
     remainingTime: PHASE_TIME_LIMIT,
     phaseTimeLimit: PHASE_TIME_LIMIT,
   }
-  
+
   await setGameTimer(gameId, timerData)
 
   // Initial broadcast
@@ -152,7 +152,7 @@ async function startTimer(io: any, gameId: string) {
     }
 
     const newRemainingTime = timer.remainingTime - 1
-    
+
     // Send final 0 update and keep it in Redis
     if (newRemainingTime <= 0) {
       const finalUpdate = {

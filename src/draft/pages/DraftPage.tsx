@@ -174,9 +174,12 @@ export function DraftPage() {
       if (!nextAction) return
 
       const timerData = data as unknown as TimerUpdatePayload
-      
+
       // Show 0 or the server's time
-      if (typeof timerData.remainingTime === 'number' && Number.isFinite(timerData.remainingTime)) {
+      if (
+        typeof timerData.remainingTime === 'number' &&
+        Number.isFinite(timerData.remainingTime)
+      ) {
         setTimeRemaining(Math.max(0, timerData.remainingTime))
         setIsTimerReady(true)
       }
