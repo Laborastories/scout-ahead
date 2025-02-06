@@ -119,7 +119,7 @@ async function broadcastTimerUpdateToClients(io: any, gameId: string) {
   await broadcastTimerUpdate(gameId, timer)
 
   // Also emit directly to clients on this server
-  io.to(gameId).emit('timerUpdate', { 
+  io.to(gameId).emit('timerUpdate', {
     gameId,
     ...timer,
   })
@@ -136,7 +136,7 @@ async function startTimer(io: any, gameId: string) {
   // Start exactly at current second
   const startTime = Math.floor(Date.now() / 1000) * 1000
   const remainingTime = PHASE_TIME_LIMIT
-  
+
   // Store the turn start time and remaining time in Redis
   await setGameTimer(gameId, {
     turnStartedAt: startTime,
@@ -158,7 +158,7 @@ async function startTimer(io: any, gameId: string) {
     }
 
     const newRemainingTime = timer.remainingTime - 1
-    
+
     // Send final 0 update before clearing
     if (newRemainingTime <= 0) {
       await setGameTimer(gameId, {
@@ -167,7 +167,7 @@ async function startTimer(io: any, gameId: string) {
         lastUpdateTime: Date.now(),
       })
       await broadcastTimerUpdateToClients(io, gameId)
-      
+
       clearInterval(activeTimers[gameId])
       delete activeTimers[gameId]
       await clearGameTimer(gameId)
@@ -344,7 +344,13 @@ export const webSocketFn: WebSocketFn = (io, context) => {
   // Subscribe to Redis channels for cross-server communication
   subscriber.subscribe(CHANNELS.TIMER_UPDATE, message => {
     try {
-      const { gameId, turnStartedAt, phaseTimeLimit, remainingTime, lastUpdateTime } = JSON.parse(message)
+      const {
+        gameId,
+        turnStartedAt,
+        phaseTimeLimit,
+        remainingTime,
+        lastUpdateTime,
+      } = JSON.parse(message)
       io.to(gameId).emit('timerUpdate', {
         gameId,
         turnStartedAt,

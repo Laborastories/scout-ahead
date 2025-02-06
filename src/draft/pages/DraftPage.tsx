@@ -184,16 +184,23 @@ export function DraftPage() {
     if (!timerState) return
 
     // Calculate time since last server update
-    const timeSinceUpdate = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)
-    
+    const timeSinceUpdate = Math.floor(
+      (Date.now() - timerState.lastUpdateTime) / 1000,
+    )
+
     // If we haven't received an update in more than 2 seconds, show loading state
     if (timeSinceUpdate > 2) {
-      setTimeRemaining(prevTime => prevTime !== null ? prevTime : timerState.remainingTime)
+      setTimeRemaining(prevTime =>
+        prevTime !== null ? prevTime : timerState.remainingTime,
+      )
       return
     }
 
     // Interpolate the remaining time based on time since last update
-    const interpolatedTime = Math.max(0, timerState.remainingTime - timeSinceUpdate)
+    const interpolatedTime = Math.max(
+      0,
+      timerState.remainingTime - timeSinceUpdate,
+    )
     setTimeRemaining(interpolatedTime)
 
     // Clear timer state if time is up or remaining time is 0
