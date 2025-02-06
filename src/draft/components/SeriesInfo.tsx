@@ -61,8 +61,13 @@ export function SeriesInfo({
 
   const gamesNeeded =
     series.format === 'BO5' ? 3 : series.format === 'BO3' ? 2 : 1
-  const isSeriesOver =
-    !series.scrimBlock && (team1Wins >= gamesNeeded || team2Wins >= gamesNeeded)
+  const maxGames = series.format === 'BO5' ? 5 : series.format === 'BO3' ? 3 : 1
+  const completedGames = series.games.filter(
+    g => g.status === 'COMPLETED',
+  ).length
+  const isSeriesOver = series.scrimBlock
+    ? completedGames === maxGames
+    : team1Wins >= gamesNeeded || team2Wins >= gamesNeeded
 
   const handleCopyUrl = () => {
     const baseUrl = window.location.origin
@@ -129,29 +134,73 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
                 side='right'
                 className='flex flex-col gap-2 whitespace-nowrap'
               >
-                {series.fearlessDraft && (
-                  <div className='flex items-center gap-2'>
-                    <div className='rounded bg-primary/10 px-2 py-0.5 font-medium text-primary'>
+                <div className='flex items-center gap-2'>
+                  <div className='flex items-center gap-1.5'>
+                    <div
+                      className={cn(
+                        'rounded px-2 py-0.5 font-medium transition-colors',
+                        series.fearlessDraft
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-muted/50 text-muted-foreground/50',
+                      )}
+                    >
                       Fearless
                     </div>
-                    <span>Champions can only be picked once</span>
+                    {!series.fearlessDraft && (
+                      <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
+                        disabled
+                      </div>
+                    )}
                   </div>
-                )}
-                {series.scrimBlock && (
-                  <div className='flex items-center gap-2'>
-                    <div className='rounded bg-primary/10 px-2 py-0.5 font-medium text-primary'>
+                  <span
+                    className={cn(
+                      'transition-colors',
+                      series.fearlessDraft
+                        ? 'text-foreground'
+                        : 'text-muted-foreground/50',
+                    )}
+                  >
+                    Champions can only be picked once
+                  </span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <div className='flex items-center gap-1.5'>
+                    <div
+                      className={cn(
+                        'rounded px-2 py-0.5 font-medium transition-colors',
+                        series.scrimBlock
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-muted/50 text-muted-foreground/50',
+                      )}
+                    >
                       Scrim
                     </div>
-                    <span>All games must be played</span>
+                    {!series.scrimBlock && (
+                      <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
+                        disabled
+                      </div>
+                    )}
                   </div>
-                )}
+                  <span
+                    className={cn(
+                      'transition-colors',
+                      series.scrimBlock
+                        ? 'text-foreground'
+                        : 'text-muted-foreground/50',
+                    )}
+                  >
+                    All games must be played
+                  </span>
+                </div>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <div className='flex gap-2'>
             {isSeriesOver && (
-              <Button variant='outline' size='sm' asChild className='h-8'>
-                <Link to='/'>New Draft</Link>
+              <Button asChild>
+                <Link to='/' className='font-sans'>
+                  New Draft
+                </Link>
               </Button>
             )}
             <Button
@@ -166,9 +215,9 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
           </div>
         </div>
 
-        <div className='flex h-16 items-center justify-between rounded-lg bg-card px-6'>
-          {/* Left Timer Space */}
-          <div className='flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
+        <div className='relative flex h-16 items-center justify-between rounded-lg bg-card px-6'>
+          {/* Left Timer Space - Now absolutely positioned */}
+          <div className='absolute left-6 flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
             <AnimatePresence mode='wait'>
               {gameStatus === 'IN_PROGRESS' &&
                 timeRemaining !== null &&
@@ -207,8 +256,8 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
             </AnimatePresence>
           </div>
 
-          {/* Center Content */}
-          <div className='flex flex-col items-center gap-4'>
+          {/* Center Content - Now with auto margins to ensure centering */}
+          <div className='mx-auto flex flex-col items-center gap-4'>
             {/* Game Navigation */}
             <div className='flex gap-2'>
               {Array.from({
@@ -386,8 +435,8 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
             </div>
           </div>
 
-          {/* Right Timer Space */}
-          <div className='flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
+          {/* Right Timer Space - Now absolutely positioned */}
+          <div className='absolute right-6 flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
             <AnimatePresence mode='wait'>
               {gameStatus === 'IN_PROGRESS' &&
                 timeRemaining !== null &&

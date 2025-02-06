@@ -1,13 +1,13 @@
 import { HttpError } from 'wasp/server'
 import { type GetAdminStats } from 'wasp/server/operations'
-import { subHours } from 'date-fns'
+import { subHours, startOfDay } from 'date-fns'
 
 type UserWithSeries = {
   id: string
   username: string
   email: string
   createdAt: Date
-  updatedAt: Date
+  lastActiveTimestamp: Date
   createdSeries: {
     _count: {
       games: number
@@ -24,34 +24,7 @@ type SeriesWithTeams = {
   status: string
 }
 
-type AdminStatsPayload = {
-  totalUsers: number
-  totalDrafts: number
-  totalGamesPlayed: number
-  activeUsers24h: number
-  users: {
-    id: string
-    username: string
-    email: string
-    createdAt: string
-    lastLoginAt: string
-    totalDrafts: number
-    totalGames: number
-  }[]
-  recentDrafts: {
-    id: string
-    createdAt: string
-    team1Name: string
-    team2Name: string
-    format: string
-    status: string
-  }[]
-}
-
-export const getAdminStats: GetAdminStats<void, AdminStatsPayload> = async (
-  args,
-  context,
-) => {
+export const getAdminStats = (async (args, context) => {
   if (!context.user?.isAdmin) {
     throw new HttpError(401, 'Unauthorized')
   }
@@ -63,7 +36,7 @@ export const getAdminStats: GetAdminStats<void, AdminStatsPayload> = async (
       username: true,
       email: true,
       createdAt: true,
-      updatedAt: true,
+      lastActiveTimestamp: true,
       createdSeries: {
         select: {
           _count: {
@@ -98,7 +71,7 @@ export const getAdminStats: GetAdminStats<void, AdminStatsPayload> = async (
   // Get active users in last 24h
   const activeUsers24h = await context.entities.User.count({
     where: {
-      updatedAt: {
+      lastActiveTimestamp: {
         gte: subHours(new Date(), 24),
       },
     },
@@ -114,17 +87,27 @@ export const getAdminStats: GetAdminStats<void, AdminStatsPayload> = async (
   // Get total drafts
   const totalDrafts = await context.entities.Series.count()
 
+  // Get drafts created today
+  const draftsToday = await context.entities.Series.count({
+    where: {
+      createdAt: {
+        gte: startOfDay(new Date()),
+      },
+    },
+  })
+
   return {
     totalUsers: users.length,
     totalDrafts,
     totalGamesPlayed,
     activeUsers24h,
+    draftsToday,
     users: users.map(user => ({
       id: user.id,
       username: user.username,
       email: user.email,
       createdAt: user.createdAt.toISOString(),
-      lastLoginAt: user.updatedAt.toISOString(),
+      lastActiveTimestamp: user.lastActiveTimestamp,
       totalDrafts: user.createdSeries.length,
       totalGames: user.createdSeries.reduce(
         (acc, series) => acc + series._count.games,
@@ -140,6 +123,6 @@ export const getAdminStats: GetAdminStats<void, AdminStatsPayload> = async (
       status: draft.status,
     })),
   }
-}
+}) satisfies GetAdminStats<void, any>
 
-export type { AdminStatsPayload as AdminStats }
+export type GetAdminStatsOperation = typeof getAdminStats

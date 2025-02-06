@@ -28,30 +28,9 @@ import { useState, useEffect } from 'react'
 import { Button } from '../client/components/ui/button'
 import { Link } from 'wasp/client/router'
 import { useNavigate } from 'react-router-dom'
+import { type GetAdminStatsOperation } from './operations'
 
-interface AdminStats {
-  totalUsers: number
-  totalDrafts: number
-  totalGamesPlayed: number
-  activeUsers24h: number
-  users: {
-    id: string
-    username: string
-    email: string
-    createdAt: string
-    lastLoginAt: string
-    totalDrafts: number
-    totalGames: number
-  }[]
-  recentDrafts: {
-    id: string
-    createdAt: string
-    team1Name: string
-    team2Name: string
-    format: string
-    status: string
-  }[]
-}
+export type AdminStats = Awaited<ReturnType<GetAdminStatsOperation>>
 
 export function AdminDashboardPage() {
   const { data: user } = useAuth()
@@ -107,7 +86,7 @@ export function AdminDashboardPage() {
     )
   }
 
-  const adminStats = stats as AdminStats
+  const adminStats = stats as unknown as AdminStats
 
   // Pagination calculations
   const totalPages = Math.ceil(adminStats.users.length / itemsPerPage)
@@ -152,7 +131,7 @@ export function AdminDashboardPage() {
           <CardContent>
             <div className='text-2xl font-bold'>{adminStats.totalDrafts}</div>
             <p className='font-sans text-xs text-muted-foreground'>
-              {adminStats.recentDrafts.length} drafts today
+              {adminStats.draftsToday} drafts today
             </p>
           </CardContent>
         </Card>
@@ -223,7 +202,7 @@ export function AdminDashboardPage() {
                     {new Date(user.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    {new Date(user.lastLoginAt).toLocaleDateString()}
+                    {new Date(user.lastActiveTimestamp).toLocaleDateString()}
                   </TableCell>
                   <TableCell className='text-right'>
                     {user.totalDrafts}

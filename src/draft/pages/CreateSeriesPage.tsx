@@ -2,22 +2,23 @@ import { type FormEvent, useState } from 'react'
 import { createSeries } from 'wasp/client/operations'
 import { motion } from 'motion/react'
 import { Input } from '../../client/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../client/components/ui/select'
 import { Button } from '../../client/components/ui/button'
-import { Copy, Check, Info } from '@phosphor-icons/react'
-import { Checkbox } from '../../client/components/ui/checkbox'
+import {
+  Copy,
+  Check,
+  Info,
+  CaretDown,
+  CaretRight,
+  User,
+} from '@phosphor-icons/react'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '../../client/components/ui/tooltip'
+import { cn } from '../../lib/utils'
+import { Link } from 'wasp/client/router'
 
 type SeriesArgs = {
   team1Name: string
@@ -28,31 +29,55 @@ type SeriesArgs = {
   scrimBlock: boolean
 }
 
+const ScrollIndicator = () => (
+  <motion.div
+    initial={{ opacity: 0, y: -5 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 5 }}
+    className='flex flex-col items-center gap-4 text-muted-foreground/80'
+  >
+    <span className='font-sans'>More info below</span>
+    <motion.div
+      animate={{ y: [0, 2, 0] }}
+      transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+    >
+      <CaretDown size={20} />
+    </motion.div>
+  </motion.div>
+)
+
 export function CreateSeriesPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [urls, setUrls] = useState<{
-    blueUrl?: string
-    redUrl?: string
-    spectatorUrl?: string
-    team1Name?: string
-    team2Name?: string
-  }>({})
-  const [copied, setCopied] = useState(false)
   const [seriesFormat, setSeriesFormat] = useState<'BO1' | 'BO3' | 'BO5'>('BO3')
   const [fearlessDraft, setFearlessDraft] = useState(false)
   const [scrimBlock, setScrimBlock] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [createdDraft, setCreatedDraft] = useState<{
+    urls: {
+      blueUrl: string
+      redUrl: string
+      spectatorUrl: string
+      team1Name: string
+      team2Name: string
+    }
+    format: 'BO1' | 'BO3' | 'BO5'
+    fearlessDraft: boolean
+    scrimBlock: boolean
+  } | null>(null)
 
   const handleCopyAll = () => {
+    if (!createdDraft) return
+
     const formatText =
-      seriesFormat === 'BO5'
+      createdDraft.format === 'BO5'
         ? 'best of 5'
-        : seriesFormat === 'BO3'
+        : createdDraft.format === 'BO3'
           ? 'best of 3'
           : 'best of 1'
     const modeText = [
-      fearlessDraft ? 'fearless' : '',
-      scrimBlock ? 'scrim block' : '',
+      createdDraft.fearlessDraft ? 'fearless' : '',
+      createdDraft.scrimBlock ? 'scrim block' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -61,14 +86,14 @@ export function CreateSeriesPage() {
 
     const formattedLinks = `${description}
 
-${urls.team1Name}:
-${urls.blueUrl}
+${createdDraft.urls.team1Name}:
+${createdDraft.urls.blueUrl}
 
-${urls.team2Name}:
-${urls.redUrl}
+${createdDraft.urls.team2Name}:
+${createdDraft.urls.redUrl}
 
 Spectator:
-${urls.spectatorUrl}`
+${createdDraft.urls.spectatorUrl}`
 
     navigator.clipboard.writeText(formattedLinks)
     setCopied(true)
@@ -79,7 +104,7 @@ ${urls.spectatorUrl}`
     e.preventDefault()
     setIsLoading(true)
     setError('')
-    setUrls({})
+    setCreatedDraft(null)
 
     const formData = new FormData(e.currentTarget)
     const team1Name = formData.get('team1Name') as string
@@ -104,12 +129,17 @@ ${urls.spectatorUrl}`
     try {
       const series = await createSeries(data)
       const baseUrl = window.location.origin
-      setUrls({
-        blueUrl: `${baseUrl}/draft/${series.id}/1/team1/${series.team1AuthToken}`,
-        redUrl: `${baseUrl}/draft/${series.id}/1/team2/${series.team2AuthToken}`,
-        spectatorUrl: `${baseUrl}/draft/${series.id}/1`,
-        team1Name,
-        team2Name,
+      setCreatedDraft({
+        urls: {
+          blueUrl: `${baseUrl}/draft/${series.id}/1/team1/${series.team1AuthToken}`,
+          redUrl: `${baseUrl}/draft/${series.id}/1/team2/${series.team2AuthToken}`,
+          spectatorUrl: `${baseUrl}/draft/${series.id}/1`,
+          team1Name,
+          team2Name,
+        },
+        format: seriesFormat,
+        fearlessDraft,
+        scrimBlock,
       })
     } catch (err: any) {
       setError(err.message || 'Failed to create series')
@@ -124,23 +154,28 @@ ${urls.spectatorUrl}`
         <h1 className='mb-4 text-6xl font-bold tracking-tight'>
           scout<span className='text-primary'>ahead</span>.pro
         </h1>
-        <p className='max-w-3xl text-pretty text-lg text-muted-foreground'>
+        <p className='max-w-3xl text-pretty font-sans text-lg text-muted-foreground'>
           League of Legends draft tool for teams, coaches, and players.
           <br />
           Create custom draft lobbies with advanced features like fearless draft
           and scrim blocks. Use a single link for the entire series.
         </p>
+        <Link
+          to='/login'
+          className='mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted'
+        >
+          <User size={16} className='text-primary' />
+          <span>Create an account to save drafts & access them anytime</span>
+          <CaretRight size={16} className='text-muted-foreground/50' />
+        </Link>
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className='w-full max-w-md px-4'
+        className='w-full max-w-[480px] font-sans'
       >
-        <form
-          onSubmit={handleSubmit}
-          className='space-y-4 rounded-lg bg-card p-6 shadow-xl'
-        >
+        <form onSubmit={handleSubmit} className='relative space-y-4'>
           <div className='grid grid-cols-2 gap-4'>
             <div>
               <label htmlFor='team1Name' className='text-sm font-medium'>
@@ -186,166 +221,248 @@ ${urls.spectatorUrl}`
           </div>
 
           <div>
-            <label htmlFor='format' className='text-sm font-medium'>
-              Series Format
-            </label>
-            <Select
-              name='format'
-              value={seriesFormat}
-              onValueChange={value =>
-                setSeriesFormat(value as 'BO1' | 'BO3' | 'BO5')
-              }
-            >
-              <SelectTrigger className='mt-1'>
-                <SelectValue placeholder='Select format' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='BO1'>Best of 1</SelectItem>
-                <SelectItem value='BO3'>Best of 3</SelectItem>
-                <SelectItem value='BO5'>Best of 5</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className='text-sm font-medium'>Series Format</label>
+            <div className='mt-2 grid grid-cols-3 gap-2'>
+              <button
+                type='button'
+                onClick={() => setSeriesFormat('BO1')}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                  seriesFormat === 'BO1'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border',
+                )}
+              >
+                <div className='flex items-center gap-1'>
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                </div>
+                <span className='text-sm font-medium'>BO1</span>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setSeriesFormat('BO3')}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                  seriesFormat === 'BO3'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border',
+                )}
+              >
+                <div className='flex items-center gap-1'>
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                </div>
+                <span className='text-sm font-medium'>BO3</span>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setSeriesFormat('BO5')}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                  seriesFormat === 'BO5'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border',
+                )}
+              >
+                <div className='flex items-center gap-1'>
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                </div>
+                <span className='text-sm font-medium'>BO5</span>
+              </button>
+            </div>
           </div>
 
           <div className='space-y-2 pt-2'>
-            <div className='flex items-center space-x-2'>
-              <Checkbox
-                name='fearlessDraft'
-                id='fearlessDraft'
-                checked={fearlessDraft}
-                onCheckedChange={checked => setFearlessDraft(checked === true)}
-              />
-              <div className='flex items-center gap-2'>
-                <label htmlFor='fearlessDraft' className='text-sm'>
-                  Enable Fearless Draft
-                </label>
+            <label className='text-sm font-medium'>Features</label>
+            <div className='grid grid-cols-2 gap-2'>
+              <button
+                type='button'
+                onClick={() => setFearlessDraft(!fearlessDraft)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                  fearlessDraft
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border',
+                )}
+              >
+                <span className='rounded-sm bg-amber-950 px-1 py-0.5 font-sans text-xs font-medium text-amber-500'>
+                  F
+                </span>
+                <span className='text-sm font-medium'>Fearless Draft</span>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className='h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
+                      <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <div className='flex items-center gap-2'>
-                        <div className='rounded bg-primary/10 px-2 py-0.5 font-medium text-primary'>
-                          Fearless
-                        </div>
-                        <span>Champions can only be picked once</span>
-                      </div>
+                      <span>Champions can only be picked once</span>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              </div>
-            </div>
-            <div className='flex items-center space-x-2'>
-              <Checkbox
-                name='scrimBlock'
-                id='scrimBlock'
-                checked={scrimBlock}
-                onCheckedChange={checked => setScrimBlock(checked === true)}
-              />
-              <div className='flex items-center gap-2'>
-                <label htmlFor='scrimBlock' className='text-sm'>
-                  Enable Scrim Block Mode
-                </label>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setScrimBlock(!scrimBlock)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                  scrimBlock ? 'border-primary bg-primary/5' : 'border-border',
+                )}
+              >
+                <span className='rounded-sm bg-indigo-950 px-1 py-0.5 font-sans text-xs font-medium text-indigo-400'>
+                  S
+                </span>
+                <span className='text-sm font-medium'>Scrim Block</span>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className='h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
+                      <Info className='ml-auto h-4 w-4 text-muted-foreground transition-colors hover:text-foreground' />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <div className='flex items-center gap-2'>
-                        <div className='rounded bg-primary/10 px-2 py-0.5 font-medium text-primary'>
-                          Scrim
-                        </div>
-                        <span>All games must be played</span>
-                      </div>
+                      <span>
+                        Automatically start next game after each draft
+                      </span>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              </div>
+              </button>
             </div>
           </div>
 
-          {error && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className='text-sm text-destructive'
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <Button type='submit' disabled={isLoading} className='w-full'>
-            {isLoading ? 'Creating...' : 'Create Draft'}
+          <Button
+            type='submit'
+            className='mt-6 w-full'
+            disabled={isLoading}
+            size='lg'
+          >
+            Create Draft
           </Button>
+
+          {error && (
+            <p className='text-center text-sm font-medium text-destructive'>
+              {error}
+            </p>
+          )}
         </form>
 
-        {urls.blueUrl && (
+        {createdDraft && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className='mt-8 space-y-4 rounded-lg bg-card p-6'
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className='mt-8 space-y-6 rounded-lg border bg-card p-6'
           >
-            <div className='mb-4 flex items-center justify-between'>
-              <h2 className='text-xl font-semibold'>Series Created!</h2>
+            <div className='flex items-center justify-between border-b pb-4'>
+              <div>
+                <h2 className='text-xl font-semibold tracking-tight'>
+                  {createdDraft.urls.team1Name} vs {createdDraft.urls.team2Name}
+                </h2>
+                <p className='mt-1 text-sm text-muted-foreground'>
+                  {createdDraft.format} Series{' '}
+                  {createdDraft.fearlessDraft && '• Fearless'}{' '}
+                  {createdDraft.scrimBlock && '• Scrim Block'}
+                </p>
+              </div>
               <Button
+                type='button'
                 variant='outline'
                 size='sm'
                 onClick={handleCopyAll}
-                className='flex items-center gap-2'
               >
                 {copied ? (
                   <>
-                    <Check size={16} weight='bold' />
-                    Copied!
+                    <Check className='mr-2 h-4 w-4' />
+                    Copied All
                   </>
                 ) : (
                   <>
-                    <Copy size={16} />
-                    Copy All Links
+                    <Copy className='mr-2 h-4 w-4' />
+                    Copy All
                   </>
                 )}
               </Button>
             </div>
 
-            <div className='space-y-2'>
-              <p className='text-sm font-medium'>{urls.team1Name} URL:</p>
-              <Input
-                type='text'
-                readOnly
-                value={urls.blueUrl}
-                className='mt-1 font-mono text-sm'
-                onClick={e => e.currentTarget.select()}
-              />
-            </div>
+            <div className='grid gap-4'>
+              <div>
+                <Button
+                  variant='outline'
+                  className='w-full justify-between font-mono text-sm'
+                  asChild
+                >
+                  <a
+                    href={createdDraft.urls.blueUrl}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    <div className='flex items-center gap-2'>
+                      <span className='font-sans font-medium'>
+                        {createdDraft.urls.team1Name}&apos;s Link
+                      </span>
+                      <span className='text-xs'>• Team 1</span>
+                    </div>
+                    <CaretRight className='h-4 w-4' />
+                  </a>
+                </Button>
+              </div>
 
-            <div className='space-y-2'>
-              <p className='text-sm font-medium'>{urls.team2Name} URL:</p>
-              <Input
-                type='text'
-                readOnly
-                value={urls.redUrl}
-                className='mt-1 font-mono text-sm'
-                onClick={e => e.currentTarget.select()}
-              />
-            </div>
+              <div>
+                <Button
+                  variant='outline'
+                  className='w-full justify-between font-mono text-sm'
+                  asChild
+                >
+                  <a
+                    href={createdDraft.urls.redUrl}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    <div className='flex items-center gap-2'>
+                      <span className='font-sans font-medium'>
+                        {createdDraft.urls.team2Name}&apos;s Link
+                      </span>
+                      <span className='text-xs'>• Team 2</span>
+                    </div>
+                    <CaretRight className='h-4 w-4' />
+                  </a>
+                </Button>
+              </div>
 
-            <div className='space-y-2'>
-              <p className='text-sm font-medium text-muted-foreground'>
-                Spectator URL:
-              </p>
-              <Input
-                type='text'
-                readOnly
-                value={urls.spectatorUrl}
-                className='mt-1 font-mono text-sm'
-                onClick={e => e.currentTarget.select()}
-              />
+              <div>
+                <Button
+                  variant='outline'
+                  className='w-full justify-between font-mono text-sm'
+                  asChild
+                >
+                  <a
+                    href={createdDraft.urls.spectatorUrl}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    <div className='flex items-center gap-2'>
+                      <span className='font-sans font-medium'>
+                        Spectator Link
+                      </span>
+                      <span className='text-xs'>• View Only</span>
+                    </div>
+                    <CaretRight className='h-4 w-4' />
+                  </a>
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}
       </motion.div>
+
+      <div className='mt-12'>
+        <ScrollIndicator />
+      </div>
     </div>
   )
 }

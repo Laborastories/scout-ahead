@@ -2,14 +2,16 @@ import { Link } from 'wasp/client/router'
 import { motion } from 'motion/react'
 import { fadeIn } from '../../motion/transitionPresets'
 import {
-  Strategy,
-  User as UserIcon,
-  Coffee,
   DiscordLogo,
   Plus,
+  User as UserIcon,
+  Heart,
+  XLogo,
+  HandHeart,
 } from '@phosphor-icons/react'
 import { usePrefetch } from '../../lib/utils'
 import { Button } from '../../client/components/ui/button'
+import { type User } from 'wasp/entities'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,14 +19,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../client/components/ui/dropdown-menu'
-import { Skeleton } from '../../client/components/ui/skeleton'
 import { logout } from 'wasp/client/auth'
-import { type User } from 'wasp/entities'
 import { useState } from 'react'
 
 interface FooterProps {
   user?: User | null
-  userLoading?: boolean
+  userLoading: boolean
 }
 
 const ScrollToTopLink = ({
@@ -61,142 +61,131 @@ export function Footer({ user, userLoading }: FooterProps) {
       variants={fadeIn}
       initial='initial'
       animate='animate'
-      className='relative z-50 w-full border-t bg-background'
+      className='relative z-50 w-full bg-background'
     >
       <div className='mx-auto w-full max-w-7xl px-4 py-6'>
-        {/* Wardstone CTA */}
-        <div className='mb-6 flex justify-center'>
-          <a
-            href='https://wardstone.io'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-700'
-          >
-            <img
-              src='https://wardstone.io/favicon.ico'
-              alt='Wardstone'
-              className='h-4 w-4'
-            />
-            Manage your team with Wardstone
-          </a>
-        </div>
-
-        <div className='flex flex-col items-center gap-6 sm:flex-row sm:justify-between'>
-          {/* Logo and copyright */}
-          <div className='flex flex-col items-center gap-2 sm:items-start'>
-            <Link
-              to='/'
-              className='group flex items-center gap-3 transition-opacity hover:opacity-80'
-            >
-              <Strategy size={24} weight='fill' className='text-foreground' />
-              <span className='text-base font-medium text-foreground'>
-                SCOUT AHEAD
-              </span>
-            </Link>
-            <span className='text-xs text-muted-foreground'>
-              &copy; {new Date().getFullYear()} Scout Ahead
-            </span>
+        {/* Community Support Banner */}
+        <div className='mb-8 flex flex-col items-center justify-between gap-4 rounded-lg border-2 border-primary/20 bg-primary/5 px-6 py-4 text-center sm:flex-row sm:text-left'>
+          <div className='space-y-1.5'>
+            <h3 className='flex items-center justify-center gap-2 text-lg font-semibold tracking-tight sm:justify-start'>
+              <Heart
+                size={24}
+                weight='fill'
+                className='animate-pulse text-primary'
+              />
+              Keep scoutahead.pro free forever
+            </h3>
+            <p className='font-sans text-sm leading-relaxed text-muted-foreground'>
+              Hosting costs are funded by the community. Your support helps keep
+              scoutahead.pro free for everyone.
+            </p>
           </div>
-
-          {/* Primary Actions */}
-          <div className='flex flex-col items-center gap-4 sm:flex-row sm:gap-6'>
-            <Button
-              size='default'
-              variant='default'
-              className='w-full font-sans font-medium tracking-wide sm:w-auto'
-            >
-              <ScrollToTopLink to='/' className='flex items-center gap-2'>
-                <Plus size={16} />
-                Start New Draft
-              </ScrollToTopLink>
-            </Button>
-
-            {userLoading ? (
-              <Skeleton className='h-9 w-24' />
-            ) : (
-              <div className='flex w-full items-center justify-center gap-2 sm:w-auto'>
-                {user ? (
-                  <DropdownMenu
-                    open={dropdownOpen}
-                    onOpenChange={setDropdownOpen}
-                    modal={false}
-                  >
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant='outline'
-                        size='default'
-                        className='w-full sm:w-auto'
-                      >
-                        <UserIcon size={16} className='mr-2' />
-                        <span>My Profile</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end' className='w-56'>
-                      <Link
-                        to='/profile/:id'
-                        params={{ id: user.id }}
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        <DropdownMenuItem className='cursor-pointer'>
-                          Profile
-                        </DropdownMenuItem>
-                      </Link>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className='cursor-pointer text-red-600'
-                        onClick={() => {
-                          setDropdownOpen(false)
-                          logout()
-                        }}
-                      >
-                        Log out
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className='flex w-full gap-2 sm:w-auto'>
-                    <Button
-                      variant='outline'
-                      size='default'
-                      className='w-full sm:w-auto'
-                      asChild
-                    >
-                      <Link to='/login'>Log in</Link>
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='default'
-                      className='w-full sm:w-auto'
-                      asChild
-                    >
-                      <Link to='/signup'>Sign up</Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Community and Support */}
-          <div className='flex flex-col items-center gap-2 sm:items-end'>
-            <a
-              href='https://discord.gg/aPcNhT2mt6'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground'
-            >
-              <DiscordLogo size={16} weight='fill' />
-              Join Discord
-            </a>
+          <Button variant='default' size='sm' asChild className='font-medium'>
             <a
               href='https://www.buymeacoffee.com/wardbox'
               target='_blank'
               rel='noopener noreferrer'
-              className='inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground'
+              className='whitespace-nowrap font-sans'
             >
-              <Coffee size={16} weight='fill' />
-              <span>Buy me a coffee</span>
+              <HandHeart size={16} weight='fill' className='mr-2' />
+              Support
             </a>
+          </Button>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className='flex items-center justify-between gap-4'>
+          <div className='flex items-center gap-4'>
+            <Button
+              size='default'
+              variant='default'
+              className='font-medium tracking-tight'
+            >
+              <ScrollToTopLink
+                to='/'
+                className='flex items-center gap-2 font-sans'
+              >
+                <Plus size={16} />
+                Start New Draft
+              </ScrollToTopLink>
+            </Button>
+          </div>
+          <div className='flex items-center gap-4 text-center'>
+            <p className='text-balance font-sans text-sm text-muted-foreground'>
+              Using scoutahead in your tournament or have some feedback? Let us
+              know in our discord, we&apos;d love to hear from you!
+            </p>
+          </div>
+          <div className='flex items-center gap-4'>
+            <a
+              href='https://discord.gg/aPcNhT2mt6'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground'
+            >
+              <DiscordLogo size={24} />
+            </a>
+            <a
+              href='https://twitter.com/ward_box'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground'
+            >
+              <XLogo size={24} />
+            </a>
+            <div className='flex items-center gap-2'>
+              {userLoading && (
+                <Button
+                  variant='outline'
+                  size='icon'
+                  className='font-medium'
+                  disabled
+                >
+                  <UserIcon size={16} weight='fill' />
+                </Button>
+              )}
+
+              {!userLoading && user && (
+                <DropdownMenu
+                  open={dropdownOpen}
+                  onOpenChange={setDropdownOpen}
+                  modal={false}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button size='icon' className='font-medium'>
+                      <UserIcon size={16} weight='fill' />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end' className='w-56 bg-muted'>
+                    <Link
+                      to='/profile/:id'
+                      params={{ id: user.id }}
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      <DropdownMenuItem className='cursor-pointer'>
+                        Profile
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className='cursor-pointer text-red-600'
+                      onClick={() => {
+                        setDropdownOpen(false)
+                        logout()
+                      }}
+                    >
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {!userLoading && !user && (
+                <Button size='sm' className='font-sans font-medium' asChild>
+                  <Link to='/login'>Log In</Link>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>

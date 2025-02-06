@@ -73,7 +73,19 @@ export function SideSelection({
 
   return (
     <div className='space-y-6'>
-      <h3 className='text-center text-lg font-medium'>Select Side</h3>
+      <div className='space-y-2 text-center'>
+        <h3 className='text-lg font-medium'>
+          Select Side for{' '}
+          {side === 'team1' ? series.team1Name : series.team2Name}
+        </h3>
+        <div className='text-sm text-muted-foreground'>
+          You are using{' '}
+          <span className='font-medium text-foreground'>
+            {side === 'team1' ? series.team1Name : series.team2Name}&apos;s
+          </span>{' '}
+          team URL
+        </div>
+      </div>
       <div className='grid grid-cols-2 gap-4'>
         <button
           onClick={() => handleSideSelect('blue')}

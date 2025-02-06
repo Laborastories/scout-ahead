@@ -12,13 +12,24 @@ import './Root.css'
 import '@fontsource-variable/inter'
 // Supports weights 100-800
 import '@fontsource-variable/jetbrains-mono'
+import { updateCurrentUser } from 'wasp/client/operations'
+import { useEffect } from 'react'
 
 export default function Root() {
   const { data: user, isLoading } = useAuth()
 
+  useEffect(() => {
+    if (user) {
+      const lastSeenAt = new Date(user.lastActiveTimestamp)
+      const today = new Date()
+      if (today.getTime() - lastSeenAt.getTime() > 5 * 60 * 1000) {
+        updateCurrentUser({ lastActiveTimestamp: today })
+      }
+    }
+  }, [user])
   return (
     <MotionConfig reducedMotion='user' transition={transitions.snappy}>
-      <ThemeProvider defaultTheme='dark' storageKey='vite-ui-theme'>
+      <ThemeProvider>
         <MotionProvider>
           <div className='flex min-h-screen flex-col'>
             <main className='flex-1'>

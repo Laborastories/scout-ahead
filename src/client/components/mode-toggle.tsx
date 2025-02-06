@@ -18,7 +18,7 @@ export function ModeToggle({
       variant='outline'
       size='icon'
       iconSize={iconSize}
-      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      onClick={() => setTheme('dark')}
     >
       <AnimatePresence>
         {theme === 'dark' ? (

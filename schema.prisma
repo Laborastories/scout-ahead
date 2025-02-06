@@ -13,6 +13,8 @@ model User {
   email      String   @unique
   isAdmin    Boolean  @default(false)
   createdAt  DateTime @default(now())
+  lastActiveTimestamp DateTime @default(now())
+  
   updatedAt  DateTime @updatedAt
   createdSeries Series[]
 }

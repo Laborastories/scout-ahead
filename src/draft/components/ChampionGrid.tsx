@@ -57,6 +57,7 @@ export function ChampionGrid({
   const [filteredChampions, setFilteredChampions] = useState<Champion[]>([])
   const [search, setSearch] = useState('')
   const [selectedRole, setSelectedRole] = useState<ChampionRole | null>(null)
+  const [showAvailableOnly, setShowAvailableOnly] = useState(false)
 
   // Cleanup prefetch links on unmount
   useEffect(() => {
@@ -91,8 +92,22 @@ export function ChampionGrid({
         champion.roles.includes(selectedRole),
       )
     }
+    if (showAvailableOnly) {
+      filtered = filtered.filter(
+        champion =>
+          !bannedChampions.includes(champion.id) &&
+          !usedChampions.includes(champion.id),
+      )
+    }
     setFilteredChampions(filtered)
-  }, [search, champions, selectedRole])
+  }, [
+    search,
+    champions,
+    selectedRole,
+    showAvailableOnly,
+    bannedChampions,
+    usedChampions,
+  ])
 
   return (
     <div className='flex h-full w-full flex-col rounded-md bg-muted p-2'>
@@ -120,7 +135,11 @@ export function ChampionGrid({
               key={role}
               variant={selectedRole === role ? 'secondary' : 'ghost'}
               size='icon'
-              className='h-8 w-8 p-1'
+              className={`h-8 w-8 p-1 transition-all ${
+                selectedRole === role
+                  ? 'bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background'
+                  : 'hover:bg-muted-foreground/10'
+              }`}
               onClick={() =>
                 setSelectedRole(
                   selectedRole === role ? null : (role as ChampionRole),
@@ -130,14 +149,28 @@ export function ChampionGrid({
               <img
                 src={iconUrl}
                 alt={role}
-                className={
+                className={`transition-all ${
                   selectedRole === role
-                    ? 'brightness-125'
-                    : 'opacity-75 hover:opacity-100'
-                }
+                    ? 'brightness-100'
+                    : 'opacity-50 group-hover:opacity-75'
+                }`}
               />
             </Button>
           ))}
+
+          {/* Available Filter */}
+          <Button
+            variant={showAvailableOnly ? 'secondary' : 'ghost'}
+            size='sm'
+            className={`h-8 whitespace-nowrap text-xs font-semibold transition-all ${
+              showAvailableOnly
+                ? 'bg-primary/20 text-primary ring-2 ring-primary ring-offset-2 ring-offset-background'
+                : 'text-muted-foreground hover:bg-muted-foreground/10'
+            }`}
+            onClick={() => setShowAvailableOnly(!showAvailableOnly)}
+          >
+            Available Only
+          </Button>
         </div>
       </div>
 

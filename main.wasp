@@ -134,6 +134,10 @@ query getChampionsFromDb {
   entities: [Champion]
 }
 
+action updateCurrentUser {
+  fn: import { updateCurrentUser } from "@src/root/operations",
+  entities: [User]
+}
 job fetchChampionsJob {
   executor: PgBoss,
   schedule: {
