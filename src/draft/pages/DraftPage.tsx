@@ -422,9 +422,7 @@ export function DraftPage() {
                   animate={{ filter: 'brightness(1)', scale: 1 }}
                   transition={{ duration: 0.4, ease: 'easeOut' }}
                   src={getChampionImageUrl(
-                    type === 'PICK'
-                      ? (championsMap[action.champion] ?? action.champion)
-                      : action.champion,
+                    championsMap[action.champion] ?? action.champion,
                     type === 'PICK' ? 'splash' : 'icon',
                   )}
                   alt={action.champion}
@@ -457,10 +455,7 @@ export function DraftPage() {
               >
                 <motion.img
                   src={getChampionImageUrl(
-                    type === 'PICK'
-                      ? (championsMap[pendingAction.champion] ??
-                          pendingAction.champion)
-                      : pendingAction.champion,
+                    championsMap[pendingAction.champion] ?? pendingAction.champion,
                     type === 'PICK' ? 'splash' : 'icon',
                   )}
                   alt={pendingAction.champion}
@@ -492,10 +487,7 @@ export function DraftPage() {
               >
                 <motion.img
                   src={getChampionImageUrl(
-                    type === 'PICK'
-                      ? (championsMap[previewedChampions[position]!] ??
-                          previewedChampions[position]!)
-                      : previewedChampions[position]!,
+                    championsMap[previewedChampions[position]!] ?? previewedChampions[position]!,
                     type === 'PICK' ? 'splash' : 'icon',
                   )}
                   alt={previewedChampions[position]}

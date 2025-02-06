@@ -35,7 +35,8 @@ export type AdminStats = Awaited<ReturnType<GetAdminStatsOperation>>
 export function AdminDashboardPage() {
   const { data: user } = useAuth()
   const navigate = useNavigate()
-  const [page, setPage] = useState(1)
+  const [userPage, setUserPage] = useState(1)
+  const [draftPage, setDraftPage] = useState(1)
   const itemsPerPage = 10
 
   const {
@@ -43,6 +44,11 @@ export function AdminDashboardPage() {
     isLoading,
     error,
   } = useQuery(getAdminStats, {
+    draftsPage: draftPage,
+    draftsPerPage: itemsPerPage,
+    usersPage: userPage,
+    usersPerPage: itemsPerPage,
+  }, {
     enabled: !!user?.isAdmin,
   })
 
@@ -88,11 +94,15 @@ export function AdminDashboardPage() {
 
   const adminStats = stats as unknown as AdminStats
 
-  // Pagination calculations
-  const totalPages = Math.ceil(adminStats.users.length / itemsPerPage)
-  const startIndex = (page - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentUsers = adminStats.users.slice(startIndex, endIndex)
+  // Pagination calculations for users
+  const totalUserPages = Math.ceil(adminStats.totalUsers / itemsPerPage)
+  const userStartIndex = (userPage - 1) * itemsPerPage
+  const userEndIndex = userStartIndex + adminStats.users.length
+
+  // Pagination calculations for drafts
+  const totalDraftPages = Math.ceil(adminStats.totalDrafts / itemsPerPage)
+  const draftStartIndex = (draftPage - 1) * itemsPerPage
+  const draftEndIndex = draftStartIndex + adminStats.recentDrafts.length
 
   return (
     <motion.div
@@ -194,7 +204,7 @@ export function AdminDashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody className='font-sans'>
-              {currentUsers.map(user => (
+              {adminStats.users.map(user => (
                 <TableRow key={user.id}>
                   <TableCell className='font-medium'>{user.username}</TableCell>
                   <TableCell>{user.email}</TableCell>
@@ -214,27 +224,26 @@ export function AdminDashboardPage() {
               ))}
             </TableBody>
           </Table>
-          {/* Pagination Controls */}
+          {/* Users Table Pagination */}
           <div className='mt-4 flex items-center justify-between font-sans'>
             <div className='text-sm text-muted-foreground'>
-              Showing {startIndex + 1}-
-              {Math.min(endIndex, adminStats.users.length)} of{' '}
-              {adminStats.users.length} users
+              Showing {userStartIndex + 1}-
+              {userEndIndex} of {adminStats.totalUsers} users
             </div>
             <div className='flex gap-2'>
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
+                onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                disabled={userPage === 1}
               >
                 Previous
               </Button>
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                onClick={() => setUserPage(p => Math.min(totalUserPages, p + 1))}
+                disabled={userPage === totalUserPages}
               >
                 Next
               </Button>
@@ -305,6 +314,31 @@ export function AdminDashboardPage() {
               ))}
             </TableBody>
           </Table>
+          {/* Drafts Table Pagination */}
+          <div className='mt-4 flex items-center justify-between font-sans'>
+            <div className='text-sm text-muted-foreground'>
+              Showing {draftStartIndex + 1}-
+              {draftEndIndex} of {adminStats.totalDrafts} drafts
+            </div>
+            <div className='flex gap-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setDraftPage(p => Math.max(1, p - 1))}
+                disabled={draftPage === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setDraftPage(p => Math.min(totalDraftPages, p + 1))}
+                disabled={draftPage === totalDraftPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.div>

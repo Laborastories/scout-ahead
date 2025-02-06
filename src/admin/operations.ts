@@ -24,12 +24,27 @@ type SeriesWithTeams = {
   status: string
 }
 
-export const getAdminStats = (async (args, context) => {
+type AdminStatsArgs = {
+  draftsPage: number
+  draftsPerPage: number
+  usersPage: number
+  usersPerPage: number
+}
+
+export const getAdminStats = (async (args: AdminStatsArgs, context) => {
   if (!context.user?.isAdmin) {
     throw new HttpError(401, 'Unauthorized')
   }
 
-  // Get all users with their draft and game counts
+  // Calculate pagination offsets
+  const draftsSkip = (args.draftsPage - 1) * args.draftsPerPage
+  const usersSkip = (args.usersPage - 1) * args.usersPerPage
+
+  // Get total counts first
+  const totalUsers = await context.entities.User.count()
+  const totalDrafts = await context.entities.Series.count()
+
+  // Get paginated users with their draft and game counts
   const users = (await context.entities.User.findMany({
     select: {
       id: true,
@@ -50,9 +65,11 @@ export const getAdminStats = (async (args, context) => {
     orderBy: {
       createdAt: 'desc',
     },
+    skip: usersSkip,
+    take: args.usersPerPage,
   })) as UserWithSeries[]
 
-  // Get recent drafts
+  // Get paginated recent drafts
   const recentDrafts = (await context.entities.Series.findMany({
     select: {
       id: true,
@@ -65,7 +82,8 @@ export const getAdminStats = (async (args, context) => {
     orderBy: {
       createdAt: 'desc',
     },
-    take: 10,
+    skip: draftsSkip,
+    take: args.draftsPerPage,
   })) as SeriesWithTeams[]
 
   // Get active users in last 24h
@@ -84,9 +102,6 @@ export const getAdminStats = (async (args, context) => {
     },
   })
 
-  // Get total drafts
-  const totalDrafts = await context.entities.Series.count()
-
   // Get drafts created today
   const draftsToday = await context.entities.Series.count({
     where: {
@@ -97,7 +112,7 @@ export const getAdminStats = (async (args, context) => {
   })
 
   return {
-    totalUsers: users.length,
+    totalUsers,
     totalDrafts,
     totalGamesPlayed,
     activeUsers24h,
@@ -123,6 +138,6 @@ export const getAdminStats = (async (args, context) => {
       status: draft.status,
     })),
   }
-}) satisfies GetAdminStats<void, any>
+}) satisfies GetAdminStats<AdminStatsArgs, any>
 
 export type GetAdminStatsOperation = typeof getAdminStats
