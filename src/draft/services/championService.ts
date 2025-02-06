@@ -1,20 +1,48 @@
 import { getChampionsFromDb } from 'wasp/client/operations'
 
+// Add retry utility at the top
+async function fetchWithRetry<T>(
+  url: string,
+  maxRetries = 3,
+  initialDelay = 1000,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      return (await response.json()) as T
+    } catch (error) {
+      if (attempt === maxRetries) throw error
+      const delay = initialDelay * Math.pow(2, attempt - 1)
+      console.log(
+        `DDragon version fetch attempt ${attempt} failed, retrying in ${delay}ms...`,
+      )
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error('All retry attempts failed')
+}
+
 const COMMUNITY_DRAGON_URL =
   'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/'
 
-const S3_BASE_URL = import.meta.env.REACT_APP_S3_BASE_URL || 'https://scoutahead-dev.s3.amazonaws.com'
+const S3_BASE_URL =
+  import.meta.env.REACT_APP_S3_BASE_URL ||
+  'https://scoutahead-dev.s3.amazonaws.com'
 
 export let DDRAGON_VERSION = '15.1.1' // Fallback version
 
-// Initialize DDragon version
-fetch('https://ddragon.leagueoflegends.com/api/versions.json')
-  .then(response => response.json())
+// Initialize DDragon version with retry
+fetchWithRetry<string[]>(
+  'https://ddragon.leagueoflegends.com/api/versions.json',
+)
   .then(versions => {
     DDRAGON_VERSION = versions[0]
   })
   .catch(error => {
-    console.error('Failed to fetch DDragon version:', error)
+    console.error('Failed to fetch DDragon version after retries:', error)
   })
 
 export type ChampionRole = 'top' | 'jungle' | 'mid' | 'bot' | 'support'

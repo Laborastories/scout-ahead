@@ -1,6 +1,11 @@
 import { HttpError } from 'wasp/server'
 import { type GetAdminStats } from 'wasp/server/operations'
 import { subHours, startOfDay } from 'date-fns'
+import {
+  type TriggerChampionUpdate,
+  type TriggerChampionImageUpdate,
+} from './types'
+import { fetchChampionsJob, fetchChampionImagesJob } from 'wasp/server/jobs'
 
 type UserWithSeries = {
   id: string
@@ -78,13 +83,29 @@ export const getAdminStats = (async (args: AdminStatsArgs, context) => {
       team2Name: true,
       format: true,
       status: true,
+      fearlessDraft: true,
+      scrimBlock: true,
+      team1AuthToken: true,
+      team2AuthToken: true,
+      creator: {
+        select: {
+          username: true,
+          email: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'desc',
     },
     skip: draftsSkip,
     take: args.draftsPerPage,
-  })) as SeriesWithTeams[]
+  })) as (SeriesWithTeams & {
+    fearlessDraft: boolean
+    scrimBlock: boolean
+    team1AuthToken: string
+    team2AuthToken: string
+    creator: { username: string; email: string } | null
+  })[]
 
   // Get active users in last 24h
   const activeUsers24h = await context.entities.User.count({
@@ -136,8 +157,47 @@ export const getAdminStats = (async (args: AdminStatsArgs, context) => {
       team2Name: draft.team2Name,
       format: draft.format,
       status: draft.status,
+      fearlessDraft: draft.fearlessDraft,
+      scrimBlock: draft.scrimBlock,
+      team1AuthToken: draft.team1AuthToken,
+      team2AuthToken: draft.team2AuthToken,
+      creator: draft.creator,
     })),
   }
 }) satisfies GetAdminStats<AdminStatsArgs, any>
+
+export const triggerChampionUpdate: TriggerChampionUpdate = async (
+  args,
+  context,
+) => {
+  if (!context.user?.isAdmin) {
+    throw new Error('Unauthorized')
+  }
+
+  try {
+    await fetchChampionsJob.submit({})
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to trigger champion update:', error)
+    throw new Error('Failed to trigger champion update')
+  }
+}
+
+export const triggerChampionImageUpdate: TriggerChampionImageUpdate = async (
+  args,
+  context,
+) => {
+  if (!context.user?.isAdmin) {
+    throw new Error('Unauthorized')
+  }
+
+  try {
+    await fetchChampionImagesJob.submit({})
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to trigger champion image update:', error)
+    throw new Error('Failed to trigger champion image update')
+  }
+}
 
 export type GetAdminStatsOperation = typeof getAdminStats

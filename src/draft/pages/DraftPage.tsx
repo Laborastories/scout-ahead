@@ -455,7 +455,8 @@ export function DraftPage() {
               >
                 <motion.img
                   src={getChampionImageUrl(
-                    championsMap[pendingAction.champion] ?? pendingAction.champion,
+                    championsMap[pendingAction.champion] ??
+                      pendingAction.champion,
                     type === 'PICK' ? 'splash' : 'icon',
                   )}
                   alt={pendingAction.champion}
@@ -487,7 +488,8 @@ export function DraftPage() {
               >
                 <motion.img
                   src={getChampionImageUrl(
-                    championsMap[previewedChampions[position]!] ?? previewedChampions[position]!,
+                    championsMap[previewedChampions[position]!] ??
+                      previewedChampions[position]!,
                     type === 'PICK' ? 'splash' : 'icon',
                   )}
                   alt={previewedChampions[position]}

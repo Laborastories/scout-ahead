@@ -1,4 +1,8 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  PutObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { type FetchChampionsJob } from 'wasp/server/jobs'
 import { createHash } from 'crypto'
@@ -15,7 +19,8 @@ const s3Client = new S3Client({
 })
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || ''
-const COMMUNITY_DRAGON_URL = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
+const COMMUNITY_DRAGON_URL =
+  'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
 
 interface CommunityDragonChampion {
   id: number
@@ -46,12 +51,43 @@ async function initDDragon() {
   }
 }
 
-async function downloadImage(url: string): Promise<Buffer> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to download image from ${url}`)
+async function fetchWithRetry<T>(
+  url: string,
+  options: {
+    maxRetries?: number
+    initialDelay?: number
+    parseJson?: boolean
+  } = {},
+): Promise<T> {
+  const { maxRetries = 3, initialDelay = 1000, parseJson = true } = options
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      if (parseJson) {
+        return (await response.json()) as T
+      }
+      return (await response.arrayBuffer()) as T
+    } catch (error) {
+      if (attempt === maxRetries) throw error
+      const delay = initialDelay * Math.pow(2, attempt - 1) // exponential backoff
+      console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
   }
-  return Buffer.from(await response.arrayBuffer())
+  throw new Error('All retry attempts failed')
+}
+
+async function downloadImage(url: string): Promise<Buffer> {
+  const arrayBuffer = await fetchWithRetry<ArrayBuffer>(url, {
+    parseJson: false,
+    maxRetries: 3,
+    initialDelay: 1000,
+  })
+  return Buffer.from(arrayBuffer)
 }
 
 // Helper to get image hash
@@ -95,11 +131,11 @@ async function processAndUploadImage(
   try {
     // Generate hash of original image
     const imageHash = await getImageHash(imageBuffer)
-    
+
     // Check if we already have this image processed
     const key = `champs/${imageType}/${championId}.webp`
     const existingMetadata = await getExistingImageMetadata(key)
-    
+
     // Skip if image hasn't changed and processing version is the same
     if (
       existingMetadata?.hash === imageHash &&
@@ -158,7 +194,10 @@ async function processAndUploadImage(
     console.log(`Stored S3 key for ${championId} ${imageType}:`, key)
     return key
   } catch (error) {
-    console.error(`Failed to process and upload image for ${championId}:`, error)
+    console.error(
+      `Failed to process and upload image for ${championId}:`,
+      error,
+    )
     return null
   }
 }
@@ -168,33 +207,44 @@ async function clearPendingJobs() {
   try {
     const pgBoss = await pgBossStarted
     // The job name is 'fetchChampionImages' as defined in main.wasp
-    const jobs = await pgBoss.fetch('fetchChampionImages', 1000, { includeMetadata: true })
-    
+    const jobs = await pgBoss.fetch('fetchChampionImages', 1000, {
+      includeMetadata: true,
+    })
+
     if (jobs?.length) {
-      console.log(`Found ${jobs.length} pending champion image jobs, clearing...`)
-      
+      console.log(
+        `Found ${jobs.length} pending champion image jobs, clearing...`,
+      )
+
       // Complete or fail each job based on its state
-      await Promise.all(jobs.map(async job => {
-        try {
-          if (job.state === 'created' || job.state === 'retry') {
-            // Job hasn't started yet, we can safely complete it
-            await pgBoss.complete(job.id)
-            console.log(`Completed pending job ${job.id} (state: ${job.state})`)
-          } else if (job.state === 'active') {
-            // Job is running, mark it as failed
-            await pgBoss.fail(job.id, { 
-              message: 'Cancelled due to new job starting',
-              state: job.state
-            })
-            console.log(`Failed active job ${job.id} (state: ${job.state})`)
+      await Promise.all(
+        jobs.map(async job => {
+          try {
+            if (job.state === 'created' || job.state === 'retry') {
+              // Job hasn't started yet, we can safely complete it
+              await pgBoss.complete(job.id)
+              console.log(
+                `Completed pending job ${job.id} (state: ${job.state})`,
+              )
+            } else if (job.state === 'active') {
+              // Job is running, mark it as failed
+              await pgBoss.fail(job.id, {
+                message: 'Cancelled due to new job starting',
+                state: job.state,
+              })
+              console.log(`Failed active job ${job.id} (state: ${job.state})`)
+            }
+          } catch (error) {
+            console.error(`Failed to clear job ${job.id}:`, error)
           }
-        } catch (error) {
-          console.error(`Failed to clear job ${job.id}:`, error)
-        }
-      }))
+        }),
+      )
 
       // Also check for any completed jobs and archive them
-      const completedJobs = await pgBoss.fetchCompleted('fetchChampionImages', 1000)
+      const completedJobs = await pgBoss.fetchCompleted(
+        'fetchChampionImages',
+        1000,
+      )
       if (completedJobs?.length) {
         console.log(`Found ${completedJobs.length} completed jobs to archive`)
         await Promise.all(completedJobs.map(job => pgBoss.complete(job.id)))
@@ -234,24 +284,31 @@ export const fetchChampionImages: FetchChampionsJob<{}, {}> = async (
     for (const champion of champions) {
       try {
         processedCount++
-        console.log(`\nProcessing ${champion.name} (${processedCount}/${totalChampions})...`)
+        console.log(
+          `\nProcessing ${champion.name} (${processedCount}/${totalChampions})...`,
+        )
 
         // Download and process icon from DDragon
         console.log(`  ⬇️ Downloading icon...`)
         const iconUrl = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${champion.id}.png`
         const iconBuffer = await downloadImage(iconUrl)
         console.log(`  ⚙️ Processing icon...`)
-        const iconKey = await processAndUploadImage(champion.id, 'icon', iconBuffer)
+        const iconKey = await processAndUploadImage(
+          champion.id,
+          'icon',
+          iconBuffer,
+        )
 
         // Get splash art URL from Community Dragon
         let splashKey = null
         try {
           console.log(`  ⬇️ Fetching Community Dragon data...`)
-          // First fetch champion data from Community Dragon
-          const response = await fetch(
+          // First fetch champion data from Community Dragon with retry
+          const data = await fetchWithRetry<CommunityDragonChampion>(
             `${COMMUNITY_DRAGON_URL}/v1/champions/${champion.key}.json`,
+            { maxRetries: 3, initialDelay: 1000 },
           )
-          const data: CommunityDragonChampion = await response.json()
+
           const baseSkin = data.skins.find(skin => skin.isBase)
           if (baseSkin) {
             // Remove /lol-game-data/assets/ prefix and lowercase the path
@@ -264,10 +321,17 @@ export const fetchChampionImages: FetchChampionsJob<{}, {}> = async (
             const splashUrl = `${COMMUNITY_DRAGON_URL}/${path}`
             const splashBuffer = await downloadImage(splashUrl)
             console.log(`  ⚙️ Processing splash art...`)
-            splashKey = await processAndUploadImage(champion.id, 'splash', splashBuffer)
+            splashKey = await processAndUploadImage(
+              champion.id,
+              'splash',
+              splashBuffer,
+            )
           }
         } catch (error) {
-          console.error(`  ❌ Failed to fetch Community Dragon data for ${champion.name}:`, error)
+          console.error(
+            `  ❌ Failed to fetch Community Dragon data for ${champion.name} after retries:`,
+            error,
+          )
         }
 
         // Update champion in database
@@ -283,7 +347,10 @@ export const fetchChampionImages: FetchChampionsJob<{}, {}> = async (
         const progress = ((processedCount / totalChampions) * 100).toFixed(1)
         console.log(`✅ Processed ${champion.name} (${progress}% complete)`)
       } catch (error) {
-        console.error(`❌ Failed to process images for ${champion.name}:`, error)
+        console.error(
+          `❌ Failed to process images for ${champion.name}:`,
+          error,
+        )
       }
     }
 

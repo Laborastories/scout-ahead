@@ -1,4 +1,4 @@
-import { fetchChampionImagesJob, fetchChampionsJob } from 'wasp/server/jobs'
+import { fetchChampionsJob } from 'wasp/server/jobs'
 import { type ServerSetupFn } from 'wasp/server'
 import { pgBossStarted } from 'wasp/server/jobs/core/pgBoss/pgBoss'
 
@@ -19,15 +19,5 @@ export const setupServer: ServerSetupFn = async () => {
     console.log('✅ Submitted fetchChampions job')
   } catch (error) {
     console.error('❌ Failed to submit fetchChampions job:', error)
-  }
-
-  // Run fetchChampionImages job on startup
-  if (process.env.NODE_ENV === 'production') {
-    try {
-      await fetchChampionImagesJob.submit({})
-      console.log('✅ Submitted fetchChampionImages job')
-    } catch (error) {
-      console.error('❌ Failed to submit fetchChampionImages job:', error)
-    }
   }
 }

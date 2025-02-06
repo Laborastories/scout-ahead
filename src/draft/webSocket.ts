@@ -883,7 +883,16 @@ export const webSocketFn: WebSocketFn = (io, context) => {
 
         // Get the team making the selection from the auth token
         const isTeam1 = auth === currentGame.series.team1AuthToken
-        console.log('Side selection - auth:', auth, 'team1:', currentGame.series.team1AuthToken, 'team2:', currentGame.series.team2AuthToken, 'isTeam1:', isTeam1)
+        console.log(
+          'Side selection - auth:',
+          auth,
+          'team1:',
+          currentGame.series.team1AuthToken,
+          'team2:',
+          currentGame.series.team2AuthToken,
+          'isTeam1:',
+          isTeam1,
+        )
 
         // The team making the selection is choosing which side they want to play on
         const updatedGame = await prisma.game.update({

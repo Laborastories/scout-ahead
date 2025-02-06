@@ -36,24 +36,26 @@ type SeriesArgs = Parameters<CreateSeries>[0]
 
 type FormData = z.infer<typeof seriesSchema>
 
-const seriesSchema = z.object({
-  team1Name: z.string().trim().min(1, 'Team 1 name cannot be empty'),
-  team2Name: z.string().trim().min(1, 'Team 2 name cannot be empty'),
-  matchName: z.string().trim().min(1, 'Match name cannot be empty'),
-  format: z.enum(['BO1', 'BO3', 'BO5']),
-  fearlessDraft: z.boolean(),
-  scrimBlock: z.boolean(),
-}).refine(
-  data => {
-    const team1Normalized = data.team1Name.toLowerCase().replace(/\s+/g, '')
-    const team2Normalized = data.team2Name.toLowerCase().replace(/\s+/g, '')
-    return team1Normalized !== team2Normalized
-  },
-  {
-    message: 'Team names must be different (ignoring spaces and case)',
-    path: ['team2Name'],
-  }
-)
+const seriesSchema = z
+  .object({
+    team1Name: z.string().trim().min(1, 'Team 1 name cannot be empty'),
+    team2Name: z.string().trim().min(1, 'Team 2 name cannot be empty'),
+    matchName: z.string().trim().min(1, 'Match name cannot be empty'),
+    format: z.enum(['BO1', 'BO3', 'BO5']),
+    fearlessDraft: z.boolean(),
+    scrimBlock: z.boolean(),
+  })
+  .refine(
+    data => {
+      const team1Normalized = data.team1Name.toLowerCase().replace(/\s+/g, '')
+      const team2Normalized = data.team2Name.toLowerCase().replace(/\s+/g, '')
+      return team1Normalized !== team2Normalized
+    },
+    {
+      message: 'Team names must be different (ignoring spaces and case)',
+      path: ['team2Name'],
+    },
+  )
 
 const ScrollIndicator = () => (
   <motion.div
@@ -187,7 +189,10 @@ ${createdDraft.urls.spectatorUrl}`
         className='w-full max-w-[480px] font-sans'
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='relative space-y-4'>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className='relative space-y-4'
+          >
             <div className='grid grid-cols-2 gap-4'>
               <FormField
                 control={form.control}
@@ -210,7 +215,11 @@ ${createdDraft.urls.spectatorUrl}`
                   <FormItem>
                     <FormLabel>Team 2</FormLabel>
                     <FormControl>
-                      <Input type='text' placeholder='e.g. Team Liquid' {...field} />
+                      <Input
+                        type='text'
+                        placeholder='e.g. Team Liquid'
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -225,7 +234,11 @@ ${createdDraft.urls.spectatorUrl}`
                 <FormItem>
                   <FormLabel>Match Name</FormLabel>
                   <FormControl>
-                    <Input type='text' placeholder='e.g. LCS Summer 2025 - Week 1' {...field} />
+                    <Input
+                      type='text'
+                      placeholder='e.g. LCS Summer 2025 - Week 1'
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -311,7 +324,7 @@ ${createdDraft.urls.spectatorUrl}`
                           type='button'
                           onClick={() => field.onChange(!field.value)}
                           className={cn(
-                            'w-full flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                            'flex w-full items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
                             field.value
                               ? 'border-primary bg-primary/5'
                               : 'border-border',
@@ -320,7 +333,9 @@ ${createdDraft.urls.spectatorUrl}`
                           <span className='rounded-sm bg-amber-950 px-1 py-0.5 font-sans text-xs font-medium text-amber-500'>
                             F
                           </span>
-                          <span className='text-sm font-medium'>Fearless Draft</span>
+                          <span className='text-sm font-medium'>
+                            Fearless Draft
+                          </span>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -347,7 +362,7 @@ ${createdDraft.urls.spectatorUrl}`
                           type='button'
                           onClick={() => field.onChange(!field.value)}
                           className={cn(
-                            'w-full flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
+                            'flex w-full items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted',
                             field.value
                               ? 'border-primary bg-primary/5'
                               : 'border-border',
@@ -356,7 +371,9 @@ ${createdDraft.urls.spectatorUrl}`
                           <span className='rounded-sm bg-indigo-950 px-1 py-0.5 font-sans text-xs font-medium text-indigo-400'>
                             S
                           </span>
-                          <span className='text-sm font-medium'>Scrim Block</span>
+                          <span className='text-sm font-medium'>
+                            Scrim Block
+                          </span>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>

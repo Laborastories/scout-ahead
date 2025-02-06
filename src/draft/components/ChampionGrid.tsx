@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Input } from '../../client/components/ui/input'
-import { MagnifyingGlass } from '@phosphor-icons/react'
+import { MagnifyingGlass, X } from '@phosphor-icons/react'
 import {
   type Champion,
   type ChampionRole,
@@ -58,13 +58,15 @@ export function ChampionGrid({
   const [search, setSearch] = useState('')
   const [selectedRole, setSelectedRole] = useState<ChampionRole | null>(null)
   const [showAvailableOnly, setShowAvailableOnly] = useState(false)
-  const [visibleChampions, setVisibleChampions] = useState<Set<string>>(new Set())
+  const [visibleChampions, setVisibleChampions] = useState<Set<string>>(
+    new Set(),
+  )
   const gridRef = useRef<HTMLDivElement>(null)
 
   // Intersection observer for lazy loading
   useEffect(() => {
     const observer = new IntersectionObserver(
-      (entries) => {
+      entries => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const championId = entry.target.getAttribute('data-champion-id')
@@ -78,8 +80,8 @@ export function ChampionGrid({
       {
         root: gridRef.current,
         rootMargin: '50px',
-        threshold: 0.1
-      }
+        threshold: 0.1,
+      },
     )
 
     // Observe all champion containers
@@ -154,8 +156,16 @@ export function ChampionGrid({
             placeholder='Search champions...'
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className='h-8 pl-7 font-sans text-sm'
+            className='h-8 pl-7 pr-7 font-sans text-sm'
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className='absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Role Filter */}
@@ -225,14 +235,16 @@ export function ChampionGrid({
                 }}
                 disabled={isDisabled}
                 className={`group relative flex aspect-square w-10 flex-col items-center justify-center transition-colors sm:w-12 lg:w-14 xl:w-16 2xl:w-20 ${
-                  isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  isDisabled
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'cursor-pointer'
                 } select-none overflow-hidden`}
                 title={`${champion.name}${
                   isUsed
                     ? ' (Already picked in this series)'
                     : isBanned
-                    ? ' (Banned this game)'
-                    : ''
+                      ? ' (Banned this game)'
+                      : ''
                 }`}
               >
                 <div className='relative h-full w-full'>
@@ -241,19 +253,24 @@ export function ChampionGrid({
                       src={getChampionImageUrl(champion)}
                       alt={champion.name}
                       className={`absolute inset-0 h-full w-full object-cover object-center transition-all group-hover:scale-105 ${
-                        isUsed ? 'grayscale' : isBanned ? 'brightness-50' : 'group-hover:scale-135'
+                        isUsed
+                          ? 'grayscale'
+                          : isBanned
+                            ? 'brightness-50'
+                            : 'group-hover:scale-135'
                       } select-none`}
                       loading='eager'
                       decoding='async'
                       draggable='false'
-                      onError={(e) => {
+                      onError={e => {
                         // If S3 fails, try DDragon directly
                         const img = e.currentTarget
                         if (!img.src.includes('ddragon')) {
                           img.src = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${champion.id}.png`
                         } else {
                           // If DDragon fails too, show a placeholder
-                          img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect x="3" y="3" width="18" height="18" rx="2" ry="2"%3E%3C/rect%3E%3Ccircle cx="12" cy="12" r="5"%3E%3C/circle%3E%3Cline x1="3" y1="3" x2="21" y2="21"%3E%3C/line%3E%3C/svg%3E'
+                          img.src =
+                            'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect x="3" y="3" width="18" height="18" rx="2" ry="2"%3E%3C/rect%3E%3Ccircle cx="12" cy="12" r="5"%3E%3C/circle%3E%3Cline x1="3" y1="3" x2="21" y2="21"%3E%3C/line%3E%3C/svg%3E'
                           img.classList.add('p-2', 'opacity-25')
                         }
                       }}
@@ -261,7 +278,9 @@ export function ChampionGrid({
                   )}
                   <div
                     className={`absolute inset-0 bg-black/50 ${
-                      isUsed || isBanned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      isUsed || isBanned
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
                     } flex items-center justify-center p-1 transition-opacity`}
                   >
                     <span>
