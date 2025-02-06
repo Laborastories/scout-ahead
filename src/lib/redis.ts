@@ -70,10 +70,8 @@ export async function clearGameReadyState(gameId: string) {
 
 // === Game Timers ===
 export interface GameTimer {
-  turnStartedAt: number // UTC timestamp when the turn started
-  phaseTimeLimit: number // time limit for this phase in seconds
   remainingTime: number // remaining time in seconds
-  lastUpdateTime: number // timestamp of the last server update
+  phaseTimeLimit: number // time limit for this phase in seconds
 }
 
 export async function getGameTimer(gameId: string): Promise<GameTimer | null> {
@@ -186,14 +184,7 @@ export const CHANNELS = {
 } as const
 
 // Function to broadcast timer update across all servers
-export async function broadcastTimerUpdate(
-  gameId: string,
-  data: {
-    turnStartedAt: number
-    phaseTimeLimit: number
-    remainingTime: number
-  },
-) {
+export async function broadcastTimerUpdate(gameId: string, data: GameTimer) {
   await publisher.publish(
     CHANNELS.TIMER_UPDATE,
     JSON.stringify({ gameId, ...data }),
