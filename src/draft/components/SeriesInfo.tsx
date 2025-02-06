@@ -215,9 +215,9 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
           </div>
         </div>
 
-        <div className='flex h-16 items-center justify-between rounded-lg bg-card px-6'>
-          {/* Left Timer Space */}
-          <div className='flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
+        <div className='relative flex h-16 items-center justify-between rounded-lg bg-card px-6'>
+          {/* Left Timer Space - Now absolutely positioned */}
+          <div className='absolute left-6 flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
             <AnimatePresence mode='wait'>
               {gameStatus === 'IN_PROGRESS' &&
                 timeRemaining !== null &&
@@ -256,8 +256,8 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
             </AnimatePresence>
           </div>
 
-          {/* Center Content */}
-          <div className='flex flex-col items-center gap-4'>
+          {/* Center Content - Now with auto margins to ensure centering */}
+          <div className='mx-auto flex flex-col items-center gap-4'>
             {/* Game Navigation */}
             <div className='flex gap-2'>
               {Array.from({
@@ -435,8 +435,8 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
             </div>
           </div>
 
-          {/* Right Timer Space */}
-          <div className='flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
+          {/* Right Timer Space - Now absolutely positioned */}
+          <div className='absolute right-6 flex w-[80px] items-center justify-center sm:w-[100px] lg:w-[120px]'>
             <AnimatePresence mode='wait'>
               {gameStatus === 'IN_PROGRESS' &&
                 timeRemaining !== null &&

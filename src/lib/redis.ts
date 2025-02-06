@@ -72,6 +72,8 @@ export async function clearGameReadyState(gameId: string) {
 export interface GameTimer {
   turnStartedAt: number // UTC timestamp when the turn started
   phaseTimeLimit: number // time limit for this phase in seconds
+  remainingTime: number // remaining time in seconds
+  lastUpdateTime: number // timestamp of the last server update
 }
 
 export async function getGameTimer(gameId: string): Promise<GameTimer | null> {
@@ -189,6 +191,7 @@ export async function broadcastTimerUpdate(
   data: {
     turnStartedAt: number
     phaseTimeLimit: number
+    remainingTime: number
   },
 ) {
   await publisher.publish(

@@ -1,7 +1,7 @@
 import type { WaspSocketData, WebSocketDefinition } from 'wasp/server/webSocket'
 import { prisma } from 'wasp/server'
 import { type DraftAction } from 'wasp/entities'
-import redis from '../lib/redis'
+
 import {
   getGameReadyState,
   setGameReadyState,
@@ -35,6 +35,8 @@ export interface ServerToClientEvents {
     gameId: string
     turnStartedAt: number
     phaseTimeLimit: number
+    remainingTime: number
+    lastUpdateTime: number
   }) => void
   gameUpdated: (data: {
     gameId: string
@@ -114,16 +116,12 @@ async function broadcastTimerUpdateToClients(io: any, gameId: string) {
   if (!timer) return
 
   // Broadcast to Redis for cross-server sync
-  await broadcastTimerUpdate(gameId, {
-    turnStartedAt: timer.turnStartedAt,
-    phaseTimeLimit: PHASE_TIME_LIMIT,
-  })
+  await broadcastTimerUpdate(gameId, timer)
 
   // Also emit directly to clients on this server
   io.to(gameId).emit('timerUpdate', { 
     gameId,
-    turnStartedAt: timer.turnStartedAt,
-    phaseTimeLimit: PHASE_TIME_LIMIT,
+    ...timer,
   })
 }
 
@@ -137,11 +135,14 @@ async function startTimer(io: any, gameId: string) {
 
   // Start exactly at current second
   const startTime = Math.floor(Date.now() / 1000) * 1000
+  const remainingTime = PHASE_TIME_LIMIT
   
-  // Store the turn start time in Redis
+  // Store the turn start time and remaining time in Redis
   await setGameTimer(gameId, {
     turnStartedAt: startTime,
     phaseTimeLimit: PHASE_TIME_LIMIT,
+    remainingTime,
+    lastUpdateTime: Date.now(),
   })
 
   // Initial broadcast
@@ -156,13 +157,29 @@ async function startTimer(io: any, gameId: string) {
       return
     }
 
-    const elapsed = Math.floor((Date.now() - timer.turnStartedAt) / 1000)
-    if (elapsed >= PHASE_TIME_LIMIT) {
+    const newRemainingTime = timer.remainingTime - 1
+    
+    // Send final 0 update before clearing
+    if (newRemainingTime <= 0) {
+      await setGameTimer(gameId, {
+        ...timer,
+        remainingTime: 0,
+        lastUpdateTime: Date.now(),
+      })
+      await broadcastTimerUpdateToClients(io, gameId)
+      
       clearInterval(activeTimers[gameId])
       delete activeTimers[gameId]
       await clearGameTimer(gameId)
       return
     }
+
+    // Update Redis with new remaining time and timestamp
+    await setGameTimer(gameId, {
+      ...timer,
+      remainingTime: newRemainingTime,
+      lastUpdateTime: Date.now(),
+    })
 
     await broadcastTimerUpdateToClients(io, gameId)
   }, 1000)
@@ -327,11 +344,13 @@ export const webSocketFn: WebSocketFn = (io, context) => {
   // Subscribe to Redis channels for cross-server communication
   subscriber.subscribe(CHANNELS.TIMER_UPDATE, message => {
     try {
-      const { gameId, turnStartedAt, phaseTimeLimit } = JSON.parse(message)
+      const { gameId, turnStartedAt, phaseTimeLimit, remainingTime, lastUpdateTime } = JSON.parse(message)
       io.to(gameId).emit('timerUpdate', {
         gameId,
         turnStartedAt,
         phaseTimeLimit,
+        remainingTime,
+        lastUpdateTime,
       })
     } catch (error) {
       console.error('Error handling timer update:', error)

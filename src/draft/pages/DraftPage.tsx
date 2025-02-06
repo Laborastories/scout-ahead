@@ -45,6 +45,17 @@ type GameWithRelations = Game & {
 interface TimerState {
   turnStartedAt: number
   phaseTimeLimit: number
+  remainingTime: number
+  lastUpdateTime: number
+}
+
+// Add timer update payload type
+type TimerUpdatePayload = {
+  gameId: string
+  turnStartedAt: number
+  phaseTimeLimit: number
+  remainingTime: number
+  lastUpdateTime: number
 }
 
 const ReadyStateIndicator = ({
@@ -168,28 +179,28 @@ export function DraftPage() {
     refetch()
   })
 
-  // Add useEffect for client-side timer calculation
+  // Update useEffect for client-side timer interpolation
   useEffect(() => {
     if (!timerState) return
 
-    const calculateTimeRemaining = () => {
-      const elapsed = Math.floor((Date.now() - timerState.turnStartedAt) / 1000)
-      const remaining = Math.max(0, timerState.phaseTimeLimit - elapsed)
-      setTimeRemaining(remaining)
-
-      // Clear interval if time is up
-      if (remaining <= 0) {
-        setTimerState(null)
-      }
+    // Calculate time since last server update
+    const timeSinceUpdate = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)
+    
+    // If we haven't received an update in more than 2 seconds, show loading state
+    if (timeSinceUpdate > 2) {
+      setTimeRemaining(prevTime => prevTime !== null ? prevTime : timerState.remainingTime)
+      return
     }
 
-    // Calculate initial time
-    calculateTimeRemaining()
+    // Interpolate the remaining time based on time since last update
+    const interpolatedTime = Math.max(0, timerState.remainingTime - timeSinceUpdate)
+    setTimeRemaining(interpolatedTime)
 
-    // Update every second
-    const interval = setInterval(calculateTimeRemaining, 1000)
-
-    return () => clearInterval(interval)
+    // Clear timer state if time is up or remaining time is 0
+    if (interpolatedTime <= 0 || timerState.remainingTime <= 0) {
+      setTimerState(null)
+      setTimeRemaining(0)
+    }
   }, [timerState])
 
   // Update socket listener for timer updates
@@ -198,12 +209,16 @@ export function DraftPage() {
     (data: ServerToClientPayload<'timerUpdate'>) => {
       if (!nextAction) return
 
+      const timerData = data as unknown as TimerUpdatePayload
+
       // If this is a new team's turn
       if (lastTeam !== nextAction.team) {
         setLastTeam(nextAction.team)
         setTimerState({
-          turnStartedAt: data.turnStartedAt,
-          phaseTimeLimit: data.phaseTimeLimit,
+          turnStartedAt: timerData.turnStartedAt,
+          phaseTimeLimit: timerData.phaseTimeLimit,
+          remainingTime: timerData.remainingTime,
+          lastUpdateTime: timerData.lastUpdateTime,
         })
         setIsTimerReady(true)
         return
@@ -211,8 +226,10 @@ export function DraftPage() {
 
       // Just update the timer state without resetting animation
       setTimerState({
-        turnStartedAt: data.turnStartedAt,
-        phaseTimeLimit: data.phaseTimeLimit,
+        turnStartedAt: timerData.turnStartedAt,
+        phaseTimeLimit: timerData.phaseTimeLimit,
+        remainingTime: timerData.remainingTime,
+        lastUpdateTime: timerData.lastUpdateTime,
       })
       setIsTimerReady(true)
     },
@@ -700,8 +717,8 @@ export function DraftPage() {
                           <div className='text-sm font-medium text-muted-foreground'>
                             {gameSide
                               ? readyStates[gameSide]
-                                ? 'Waiting for other team...'
-                                : 'Click ready when your team is set'
+                                ? ''
+                                : ''
                               : 'Waiting for teams...'}
                           </div>
                           {gameSide && (
