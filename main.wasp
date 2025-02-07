@@ -51,6 +51,7 @@ route LoginRoute { path: "/login", to: LoginPage }
 route SignupRoute { path: "/signup", to: SignupPage }
 route AdminDashboardRoute { path: "/admin", to: AdminDashboardPage }
 route NotFoundRoute { path: "*", to: NotFoundPage }
+route CodeOfConductRoute { path: "/code-of-conduct", to: CodeOfConductPage }
 
 // Draft Routes
 route CreateSeriesRoute { path: "/draft/create", to: CreateSeriesPage }
@@ -92,6 +93,10 @@ page AdminDashboardPage {
   component: import { AdminDashboardPage } from "@src/admin/AdminDashboardPage",
   authRequired: true
 }
+
+page CodeOfConductPage {
+  component: import { CodeOfConductPage } from "@src/pages/CodeOfConductPage.tsx"
+}
 //#endregion
 
 // Operations
@@ -127,6 +132,11 @@ action createDraftAction {
 query getAdminStats {
   fn: import { getAdminStats } from "@src/admin/operations",
   entities: [User, Series, Game]
+}
+
+query getReports {
+  fn: import { getReports } from "@src/admin/operations",
+  entities: [Report, Series, User]
 }
 
 query getChampionsFromDb {
@@ -173,5 +183,15 @@ action triggerChampionUpdate {
 action triggerChampionImageUpdate {
   fn: import { triggerChampionImageUpdate } from "@src/admin/operations.ts",
   entities: [Champion]
+}
+
+action createReport {
+  fn: import { createReport } from "@src/draft/operations/reports.ts",
+  entities: [Report, Series]
+}
+
+action updateReport {
+  fn: import { updateReport } from "@src/admin/operations.ts",
+  entities: [Report, User, Series]
 }
 

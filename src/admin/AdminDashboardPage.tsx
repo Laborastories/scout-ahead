@@ -1,6 +1,8 @@
 import {
   useQuery,
   getAdminStats,
+  getReports,
+  updateReport,
   triggerChampionUpdate,
   triggerChampionImageUpdate,
 } from 'wasp/client/operations'
@@ -28,27 +30,105 @@ import {
   Crown,
   ChartLine,
   ArrowClockwise,
+  Clock,
+  Eye,
+  Check,
+  X,
+  Prohibit,
 } from '@phosphor-icons/react'
 import { useState, useEffect } from 'react'
 import { Button } from '../client/components/ui/button'
 import { Link } from 'wasp/client/router'
 import { useNavigate } from 'react-router-dom'
-import { type GetAdminStatsOperation } from './operations'
+import {
+  type GetAdminStatsResponse,
+  type GetReportsResponse,
+} from './operations'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '../lib/utils'
 import { useToast } from '../hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../client/components/ui/dialog'
+import { Textarea } from '../client/components/ui/textarea'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../client/components/ui/form'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../client/components/ui/tooltip'
+import { RadioGroup, RadioGroupItem } from '../client/components/ui/radio-group'
 
-export type AdminStats = Awaited<ReturnType<GetAdminStatsOperation>>
+const reviewSchema = z.object({
+  status: z.enum(['PENDING', 'REVIEWED', 'RESOLVED', 'DISMISSED', 'BLOCKED']),
+  reviewNote: z.string().optional(),
+})
+
+type ReviewFormData = z.infer<typeof reviewSchema>
+
+const statusConfig = {
+  PENDING: {
+    icon: Clock,
+    label: 'Pending',
+    description: 'Report has not been reviewed yet',
+    className: 'text-amber-500',
+  },
+  REVIEWED: {
+    icon: Eye,
+    label: 'Reviewed',
+    description: 'Report has been reviewed but no action taken yet',
+    className: 'text-blue-500',
+  },
+  RESOLVED: {
+    icon: Check,
+    label: 'Resolved',
+    description: 'Report has been handled and appropriate action was taken',
+    className: 'text-green-500',
+  },
+  DISMISSED: {
+    icon: X,
+    label: 'Dismissed',
+    description: 'Report was reviewed and determined to not require action',
+    className: 'text-muted-foreground',
+  },
+  BLOCKED: {
+    icon: Prohibit,
+    label: 'Blocked',
+    description:
+      'Draft has been blocked due to inappropriate content - users cannot interact with it',
+    className: 'text-destructive',
+  },
+} as const
 
 export function AdminDashboardPage() {
   const { data: user } = useAuth()
   const navigate = useNavigate()
   const [userPage, setUserPage] = useState(1)
   const [draftPage, setDraftPage] = useState(1)
+  const [reportPage, setReportPage] = useState(1)
   const [isUpdatingChampions, setIsUpdatingChampions] = useState(false)
   const [isUpdatingImages, setIsUpdatingImages] = useState(false)
   const { toast } = useToast()
   const itemsPerPage = 10
+  const [selectedReport, setSelectedReport] = useState<
+    GetReportsResponse['reports'][number] | null
+  >(null)
 
   const {
     data: stats,
@@ -67,6 +147,39 @@ export function AdminDashboardPage() {
     },
   )
 
+  const {
+    data: reportsData,
+    isLoading: isLoadingReports,
+    error: reportsError,
+  } = useQuery(
+    getReports,
+    {
+      page: reportPage,
+      perPage: itemsPerPage,
+    },
+    {
+      enabled: !!user?.isAdmin,
+    },
+  )
+
+  const form = useForm<ReviewFormData>({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: {
+      status: 'REVIEWED',
+      reviewNote: '',
+    },
+  })
+
+  useEffect(() => {
+    if (selectedReport) {
+      // Reset form with the current report's values
+      form.reset({
+        status: selectedReport.status as ReviewFormData['status'],
+        reviewNote: selectedReport.reviewNote || '',
+      })
+    }
+  }, [selectedReport, form])
+
   useEffect(() => {
     if (user && !user.isAdmin) {
       navigate('/')
@@ -83,18 +196,20 @@ export function AdminDashboardPage() {
     )
   }
 
-  if (isLoading) {
+  if (isLoading || isLoadingReports) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-background'>
-        <div className='text-foreground'>Loading stats...</div>
+        <div className='text-foreground'>Loading...</div>
       </div>
     )
   }
 
-  if (error) {
+  if (error || reportsError) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-background'>
-        <div className='text-destructive'>Error: {error.message}</div>
+        <div className='text-destructive'>
+          Error: {error?.message || reportsError?.message}
+        </div>
       </div>
     )
   }
@@ -107,7 +222,7 @@ export function AdminDashboardPage() {
     )
   }
 
-  const adminStats = stats as unknown as AdminStats
+  const adminStats = stats as GetAdminStatsResponse
 
   // Pagination calculations for users
   const totalUserPages = Math.ceil(adminStats.totalUsers / itemsPerPage)
@@ -156,6 +271,33 @@ export function AdminDashboardPage() {
       })
     } finally {
       setIsUpdatingImages(false)
+    }
+  }
+
+  const onReviewSubmit = async (data: ReviewFormData) => {
+    if (!selectedReport) return
+
+    try {
+      await updateReport({
+        reportId: selectedReport.id,
+        status: data.status,
+        reviewNote: data.reviewNote,
+      })
+
+      toast({
+        title: 'Report Updated',
+        description: 'The report has been successfully reviewed.',
+      })
+
+      setSelectedReport(null)
+      form.reset()
+    } catch (err) {
+      console.error('Failed to update report:', err)
+      toast({
+        title: 'Error',
+        description: 'Failed to update report.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -333,6 +475,302 @@ export function AdminDashboardPage() {
                   setUserPage(p => Math.min(totalUserPages, p + 1))
                 }
                 disabled={userPage === totalUserPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reports Table */}
+      <Card className='mb-8'>
+        <CardHeader>
+          <CardTitle>Reports</CardTitle>
+          <CardDescription className='font-sans'>
+            Review and manage reported drafts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='font-sans'>Reported</TableHead>
+                <TableHead className='font-sans'>Status</TableHead>
+                <TableHead className='font-sans'>Reason</TableHead>
+                <TableHead className='font-sans'>Reporter</TableHead>
+                <TableHead className='font-sans'>Draft</TableHead>
+                <TableHead className='font-sans'>Details</TableHead>
+                <TableHead className='font-sans'>Reviewed By</TableHead>
+                <TableHead className='font-sans'>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className='font-sans'>
+              {reportsData?.reports.map(
+                (report: GetReportsResponse['reports'][number]) => (
+                  <TableRow key={report.id}>
+                    <TableCell>
+                      {formatDistanceToNow(new Date(report.createdAt), {
+                        addSuffix: true,
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        className={cn(
+                          'w-fit rounded px-2 py-0.5 text-xs font-medium',
+                          statusConfig[
+                            report.status as keyof typeof statusConfig
+                          ].className,
+                        )}
+                      >
+                        {
+                          statusConfig[
+                            report.status as keyof typeof statusConfig
+                          ].label
+                        }
+                      </div>
+                    </TableCell>
+                    <TableCell>{report.reason}</TableCell>
+                    <TableCell>
+                      {report.reporter ? (
+                        <div className='flex flex-col'>
+                          <span className='font-medium'>
+                            {report.reporter.username}
+                          </span>
+                          <span className='text-xs text-muted-foreground'>
+                            {report.reporter.email}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground'>
+                          Anonymous
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        to='/draft/:seriesId/:gameNumber'
+                        params={{
+                          seriesId: report.series.id,
+                          gameNumber: '1',
+                        }}
+                        className='hover:underline'
+                      >
+                        {report.series.team1Name} vs {report.series.team2Name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className='max-w-[200px] truncate'>
+                      {report.details || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {report.reviewedBy ? (
+                        <div className='flex flex-col'>
+                          <span className='font-medium'>
+                            {report.reviewedBy.username}
+                          </span>
+                          <span className='text-xs text-muted-foreground'>
+                            {report.reviewedBy.email}
+                          </span>
+                        </div>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex items-center gap-2'>
+                        <Dialog
+                          open={!!selectedReport}
+                          onOpenChange={open =>
+                            !open && setSelectedReport(null)
+                          }
+                        >
+                          <DialogTrigger asChild>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              className='h-6 px-2 text-xs'
+                              onClick={() => setSelectedReport(report)}
+                            >
+                              Review
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Review Report</DialogTitle>
+                              <DialogDescription>
+                                Update the status and add review notes for this
+                                report.
+                              </DialogDescription>
+                            </DialogHeader>
+
+                            <Form {...form}>
+                              <form
+                                onSubmit={form.handleSubmit(onReviewSubmit)}
+                                className='space-y-4'
+                              >
+                                <FormField
+                                  control={form.control}
+                                  name='status'
+                                  render={({ field }) => (
+                                    <FormItem className='space-y-3'>
+                                      <FormLabel>Status</FormLabel>
+                                      <FormControl>
+                                        <RadioGroup
+                                          onValueChange={field.onChange}
+                                          value={field.value}
+                                          className='grid grid-cols-5 gap-2'
+                                        >
+                                          {(
+                                            Object.entries(statusConfig) as [
+                                              keyof typeof statusConfig,
+                                              (typeof statusConfig)[keyof typeof statusConfig],
+                                            ][]
+                                          ).map(([status, config]) => {
+                                            const Icon = config.icon
+                                            return (
+                                              <TooltipProvider key={status}>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <div>
+                                                      <RadioGroupItem
+                                                        value={status}
+                                                        id={status}
+                                                        className='peer sr-only'
+                                                      />
+                                                      <label
+                                                        htmlFor={status}
+                                                        className={cn(
+                                                          'flex flex-col items-center gap-2 rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary',
+                                                          'cursor-pointer transition-all',
+                                                        )}
+                                                      >
+                                                        <Icon
+                                                          size={24}
+                                                          weight='duotone'
+                                                          className={
+                                                            config.className
+                                                          }
+                                                        />
+                                                        <span className='text-xs font-medium'>
+                                                          {config.label}
+                                                        </span>
+                                                      </label>
+                                                    </div>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side='bottom'>
+                                                    <p>{config.description}</p>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            )
+                                          })}
+                                        </RadioGroup>
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name='reviewNote'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Review Notes</FormLabel>
+                                      <FormControl>
+                                        <Textarea
+                                          placeholder='Add any internal notes about this report'
+                                          className='resize-none'
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <div className='flex justify-end gap-2'>
+                                  <Button
+                                    type='button'
+                                    variant='outline'
+                                    onClick={() => {
+                                      setSelectedReport(null)
+                                      form.reset()
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type='submit'
+                                    disabled={form.formState.isSubmitting}
+                                  >
+                                    Update Report
+                                  </Button>
+                                </div>
+                              </form>
+                            </Form>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 px-2 text-xs'
+                          asChild
+                        >
+                          <Link
+                            to='/draft/:seriesId/:gameNumber'
+                            params={{
+                              seriesId: report.series.id,
+                              gameNumber: '1',
+                            }}
+                          >
+                            View Draft
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ),
+              )}
+            </TableBody>
+          </Table>
+          {/* Reports Table Pagination */}
+          <div className='mt-4 flex items-center justify-between font-sans'>
+            <div className='text-sm text-muted-foreground'>
+              Showing {(reportPage - 1) * itemsPerPage + 1}-
+              {Math.min(
+                reportPage * itemsPerPage,
+                reportsData?.totalReports || 0,
+              )}{' '}
+              of {reportsData?.totalReports || 0} reports
+            </div>
+            <div className='flex gap-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setReportPage(p => Math.max(1, p - 1))}
+                disabled={reportPage === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() =>
+                  setReportPage(p =>
+                    Math.min(
+                      Math.ceil(
+                        (reportsData?.totalReports || 0) / itemsPerPage,
+                      ),
+                      p + 1,
+                    ),
+                  )
+                }
+                disabled={
+                  reportPage ===
+                  Math.ceil((reportsData?.totalReports || 0) / itemsPerPage)
+                }
               >
                 Next
               </Button>

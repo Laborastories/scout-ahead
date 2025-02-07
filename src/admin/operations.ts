@@ -1,5 +1,9 @@
 import { HttpError } from 'wasp/server'
-import { type GetAdminStats } from 'wasp/server/operations'
+import {
+  type GetAdminStats,
+  type GetReports,
+  type UpdateReport,
+} from 'wasp/server/operations'
 import { subHours, startOfDay } from 'date-fns'
 import {
   type TriggerChampionUpdate,
@@ -36,7 +40,12 @@ type AdminStatsArgs = {
   usersPerPage: number
 }
 
-export const getAdminStats = (async (args: AdminStatsArgs, context) => {
+type ReportsArgs = {
+  page: number
+  perPage: number
+}
+
+export const getAdminStats = (async (args: AdminStatsArgs, context: any) => {
   if (!context.user?.isAdmin) {
     throw new HttpError(401, 'Unauthorized')
   }
@@ -164,7 +173,58 @@ export const getAdminStats = (async (args: AdminStatsArgs, context) => {
       creator: draft.creator,
     })),
   }
-}) satisfies GetAdminStats<AdminStatsArgs, any>
+}) satisfies GetAdminStats
+
+export const getReports = (async (args: ReportsArgs, context: any) => {
+  if (!context.user?.isAdmin) {
+    throw new HttpError(401, 'Unauthorized: Admin access required')
+  }
+
+  const { page = 1, perPage = 10 } = args
+
+  const reports = await context.entities.Report.findMany({
+    skip: (page - 1) * perPage,
+    take: perPage,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      series: {
+        select: {
+          id: true,
+          team1Name: true,
+          team2Name: true,
+          format: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      reporter: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+        },
+      },
+    },
+  })
+
+  const totalReports = await context.entities.Report.count()
+
+  return {
+    reports,
+    totalReports,
+    page,
+    perPage,
+  }
+}) satisfies GetReports
 
 export const triggerChampionUpdate: TriggerChampionUpdate = async (
   args,
@@ -200,4 +260,66 @@ export const triggerChampionImageUpdate: TriggerChampionImageUpdate = async (
   }
 }
 
-export type GetAdminStatsOperation = typeof getAdminStats
+export const updateReport: UpdateReport = async (args, context) => {
+  if (!context.user?.isAdmin) {
+    throw new HttpError(401, 'Unauthorized: Admin access required')
+  }
+
+  const { reportId, status, reviewNote } = args
+
+  // Find the report first
+  const report = await context.entities.Report.findUnique({
+    where: { id: reportId },
+    include: { series: true },
+  })
+
+  if (!report) {
+    throw new HttpError(404, 'Report not found')
+  }
+
+  // Update the series if the status is BLOCKED
+  console.log('Updating report status:', {
+    newStatus: status,
+    currentStatus: report.status,
+  })
+
+  if (status === 'BLOCKED') {
+    console.log('Setting series to blocked:', report.seriesId)
+    await context.entities.Series.update({
+      where: { id: report.seriesId },
+      data: { isBlocked: true },
+    })
+  } else if (report.status === 'BLOCKED' && status !== 'BLOCKED') {
+    console.log('Un-blocking series:', report.seriesId)
+    await context.entities.Series.update({
+      where: { id: report.seriesId },
+      data: { isBlocked: false },
+    })
+  }
+
+  // Update the report
+  const updatedReport = await context.entities.Report.update({
+    where: { id: reportId },
+    data: {
+      status,
+      reviewNote,
+      reviewedBy: { connect: { id: context.user.id } },
+      reviewedAt: new Date(),
+    },
+    include: {
+      series: true,
+    },
+  })
+
+  console.log('Updated report:', {
+    reportId: updatedReport.id,
+    status: updatedReport.status,
+    seriesId: updatedReport.series.id,
+    isBlocked: updatedReport.series.isBlocked,
+  })
+
+  return updatedReport
+}
+
+export type GetAdminStatsResponse = Awaited<ReturnType<typeof getAdminStats>>
+export type GetReportsResponse = Awaited<ReturnType<typeof getReports>>

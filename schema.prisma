@@ -17,6 +17,33 @@ model User {
   
   updatedAt  DateTime @updatedAt
   createdSeries Series[]
+  reports    Report[]  // Reports created by this user
+  reviewedReports Report[] @relation("ReviewedReports") // Reports reviewed by this admin
+}
+
+model Report {
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // The series being reported
+  series      Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  seriesId    String
+
+  // Who reported it (optional since we don't require login)
+  reporter    User?     @relation(fields: [reporterId], references: [id])
+  reporterId  String?
+
+  // Report details
+  reason      String    // The reason for the report
+  details     String?   // Additional details provided by reporter
+  status      String    @default("PENDING") // PENDING, REVIEWED, RESOLVED, DISMISSED, BLOCKED
+  
+  // Admin response
+  reviewedBy  User?     @relation("ReviewedReports", fields: [reviewerId], references: [id])
+  reviewerId  String?
+  reviewNote  String?   // Internal note from admin
+  reviewedAt  DateTime?
 }
 
 model Series {
@@ -36,6 +63,8 @@ model Series {
   games         Game[]
   status        String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
   winner        String?   // "BLUE" or "RED"
+  reports       Report[]  // Add this relation
+  isBlocked     Boolean   @default(false)
 }
 
 model Game {
