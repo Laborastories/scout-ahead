@@ -117,8 +117,8 @@ async function getExistingImageMetadata(key: string) {
 
 // Track processing version to force updates when we change processing settings
 const PROCESSING_VERSION = {
-  splash: 'v2', // Increment this when splash processing changes
-  icon: 'v1', // Increment this when icon processing changes
+  splash: 'v4', // Increment this when splash processing changes
+  icon: 'v2', // Increment this when icon processing changes
 }
 
 async function processAndUploadImage(
@@ -156,9 +156,8 @@ async function processAndUploadImage(
           fit: 'inside',
         })
         .webp({
-          quality: 85, // Higher quality for splash art
+          quality: 80, // Higher quality for splash art
           effort: 6,
-          nearLossless: true, // Use near-lossless for better quality
         })
     } else {
       // For icons: resize to 96px (accounting for high DPI displays) and optimize
@@ -168,9 +167,8 @@ async function processAndUploadImage(
           position: 'centre',
         })
         .webp({
-          quality: 90,
+          quality: 80,
           effort: 6,
-          lossless: true, // Use lossless for small icons to maintain crispness
         })
     }
 
