@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import { Input } from '../../client/components/ui/input'
 import { Button } from '../../client/components/ui/button'
 import { z } from 'zod'
+import { checkText } from '../../lib/profanityFilter'
 import {
   Copy,
   Check,
@@ -36,17 +37,57 @@ type SeriesArgs = Parameters<CreateSeries>[0]
 
 type FormData = z.infer<typeof seriesSchema>
 
+const validateText = (text: string): text is string => {
+  const result = checkText(text)
+  return result.isClean
+}
+
+const getErrorMessage = (text: string): string => {
+  const result = checkText(text)
+  if (!result.isClean) {
+    return `can't be used`
+  }
+  return ''
+}
+
+interface SeriesData {
+  team1Name: string
+  team2Name: string
+  matchName: string
+  format: 'BO1' | 'BO3' | 'BO5'
+  fearlessDraft: boolean
+  scrimBlock: boolean
+}
+
 const seriesSchema = z
   .object({
-    team1Name: z.string().trim().min(1, 'Team 1 name cannot be empty'),
-    team2Name: z.string().trim().min(1, 'Team 2 name cannot be empty'),
-    matchName: z.string().trim().min(1, 'Match name cannot be empty'),
+    team1Name: z
+      .string()
+      .trim()
+      .min(1, 'Team 1 name cannot be empty')
+      .refine(validateText, text => ({
+        message: `Team 1 name ${getErrorMessage(text).toLocaleLowerCase()}`,
+      })),
+    team2Name: z
+      .string()
+      .trim()
+      .min(1, 'Team 2 name cannot be empty')
+      .refine(validateText, text => ({
+        message: `Team 2 name ${getErrorMessage(text).toLocaleLowerCase()}`,
+      })),
+    matchName: z
+      .string()
+      .trim()
+      .min(1, 'Match name cannot be empty')
+      .refine(validateText, text => ({
+        message: `Match name ${getErrorMessage(text).toLocaleLowerCase()}`,
+      })),
     format: z.enum(['BO1', 'BO3', 'BO5']),
     fearlessDraft: z.boolean(),
     scrimBlock: z.boolean(),
   })
   .refine(
-    data => {
+    (data): data is SeriesData => {
       const team1Normalized = data.team1Name.toLowerCase().replace(/\s+/g, '')
       const team2Normalized = data.team2Name.toLowerCase().replace(/\s+/g, '')
       return team1Normalized !== team2Normalized

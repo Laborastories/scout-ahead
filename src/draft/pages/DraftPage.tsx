@@ -21,7 +21,7 @@ import { SeriesInfo } from '../components/SeriesInfo'
 import { useParams } from 'react-router-dom'
 import { SideSelection } from '../components/SideSelection'
 import { cn } from '../../lib/utils'
-import { CaretDown } from '@phosphor-icons/react'
+import { CaretDown, Warning } from '@phosphor-icons/react'
 
 type GameWithRelations = Game & {
   series: Series & {
@@ -556,10 +556,10 @@ export function DraftPage() {
     )
   }
 
-  if (!game) {
+  if (!game || !series) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-background'>
-        <div className='text-destructive'>Game not found</div>
+        <div className='text-destructive'>Game or series not found</div>
       </div>
     )
   }
@@ -568,12 +568,26 @@ export function DraftPage() {
   const currentTurn = getCurrentTurn(gameWithRelations.actions)
   const nextAction = getNextAction(currentTurn)
   const gameSide = getTeamSide(team, gameWithRelations)
-  const isCurrentTeam = gameSide?.toUpperCase() === nextAction?.team
+  const isCurrentTeam = gameSide && nextAction?.team === gameSide.toUpperCase()
+
+  if (series.isBlocked) {
+    return (
+      <div className='flex min-h-screen items-center justify-center bg-background'>
+        <div className='flex flex-col items-center gap-4 text-center'>
+          <Warning size={48} className='text-destructive' weight='duotone' />
+          <h2 className='text-2xl font-bold text-destructive'>Draft Blocked</h2>
+          <p className='max-w-md text-pretty text-muted-foreground'>
+            This draft has been blocked due to inappropriate content. It can no
+            longer be viewed or interacted with.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className='h-screen overflow-hidden bg-background'>
       <div className='relative flex h-full flex-col rounded-lg p-2 shadow-lg backdrop-blur-sm sm:p-3'>
-        {/* Main Draft UI */}
         <div className='flex h-full flex-col gap-2 sm:gap-4'>
           {/* Top Section: Picks and Series Info */}
           <div className='flex min-h-0 flex-1 gap-2 sm:gap-4'>
@@ -598,7 +612,7 @@ export function DraftPage() {
                     : {}
                 }
                 transition={{ repeat: Infinity, duration: 2 }}
-                title={gameWithRelations.blueSide || 'Blue Side'} // Show full text on hover
+                title={gameWithRelations.blueSide || 'Blue Side'}
               >
                 {gameWithRelations.blueSide || 'Blue Side'}
               </motion.h2>

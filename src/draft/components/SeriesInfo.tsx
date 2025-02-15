@@ -1,17 +1,46 @@
 import { type Series, type Game } from 'wasp/entities'
+import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { Button } from '../../client/components/ui/button'
-import { Copy, Info } from '@phosphor-icons/react'
+import { Copy, Info, Flag } from '@phosphor-icons/react'
 import { useToast } from '../../hooks/use-toast'
 import { useSocket } from 'wasp/client/webSocket'
 import { Link } from 'wasp/client/router'
 import { motion, AnimatePresence } from 'motion/react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../client/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '../../client/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../../client/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../../client/components/ui/form'
+import { Textarea } from '../../client/components/ui/textarea'
+import { createReport } from 'wasp/client/operations'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 
 export interface SeriesInfoProps {
   series: Series & {
@@ -28,6 +57,34 @@ export interface SeriesInfoProps {
   isTimerReady?: boolean
 }
 
+const reportReasons = {
+  INAPPROPRIATE_CONTENT: 'Inappropriate Content',
+  HARASSMENT: 'Harassment or Bullying',
+  HATE_SPEECH: 'Hate Speech',
+  SPAM: 'Spam or Advertising',
+  CHEATING: 'Cheating or Exploits',
+  OTHER: 'Other',
+} as const
+
+const reportSchema = z.object({
+  reason: z.enum(
+    [
+      'INAPPROPRIATE_CONTENT',
+      'HARASSMENT',
+      'HATE_SPEECH',
+      'SPAM',
+      'CHEATING',
+      'OTHER',
+    ] as const,
+    {
+      required_error: 'Please select a reason for the report',
+    },
+  ),
+  details: z.string().optional(),
+})
+
+type ReportFormData = z.infer<typeof reportSchema>
+
 export function SeriesInfo({
   series,
   currentGameNumber,
@@ -42,6 +99,39 @@ export function SeriesInfo({
 }: SeriesInfoProps) {
   const { toast } = useToast()
   const { socket } = useSocket()
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false)
+
+  const form = useForm<ReportFormData>({
+    resolver: zodResolver(reportSchema),
+    defaultValues: {
+      reason: 'INAPPROPRIATE_CONTENT',
+      details: '',
+    },
+  })
+
+  const onReportSubmit = async (data: ReportFormData) => {
+    try {
+      await createReport({
+        seriesId: series.id,
+        reason: data.reason,
+        details: data.details,
+      })
+
+      toast({
+        title: 'Report Submitted',
+        description: 'Thank you for helping keep scoutahead.pro safe.',
+      })
+
+      setIsReportDialogOpen(false)
+      form.reset()
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to submit report. Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const team1Wins = series.games.filter(game => {
     if (game.status !== 'COMPLETED') return false
@@ -118,83 +208,180 @@ ${baseUrl}/draft/${series.id}/${currentGameNumber}`
       <div className='flex flex-col gap-2'>
         {/* Copy URL Button */}
         <div className='flex justify-between gap-2 p-2'>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <div className='flex gap-2'>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='h-8 w-8'
+                    title='Series Info'
+                  >
+                    <Info size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side='right'
+                  className='flex flex-col gap-2 whitespace-nowrap'
+                >
+                  <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-1.5'>
+                      <div
+                        className={cn(
+                          'rounded px-2 py-0.5 font-medium transition-colors',
+                          series.fearlessDraft
+                            ? 'bg-primary/10 text-primary'
+                            : 'bg-muted/50 text-muted-foreground/50',
+                        )}
+                      >
+                        Fearless
+                      </div>
+                      {!series.fearlessDraft && (
+                        <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
+                          disabled
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'transition-colors',
+                        series.fearlessDraft
+                          ? 'text-foreground'
+                          : 'text-muted-foreground/50',
+                      )}
+                    >
+                      Champions can only be picked once
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-1.5'>
+                      <div
+                        className={cn(
+                          'rounded px-2 py-0.5 font-medium transition-colors',
+                          series.scrimBlock
+                            ? 'bg-primary/10 text-primary'
+                            : 'bg-muted/50 text-muted-foreground/50',
+                        )}
+                      >
+                        Scrim
+                      </div>
+                      {!series.scrimBlock && (
+                        <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
+                          disabled
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'transition-colors',
+                        series.scrimBlock
+                          ? 'text-foreground'
+                          : 'text-muted-foreground/50',
+                      )}
+                    >
+                      All games must be played
+                    </span>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <Dialog
+              open={isReportDialogOpen}
+              onOpenChange={setIsReportDialogOpen}
+            >
+              <DialogTrigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
                   className='h-8 w-8'
-                  title='Series Info'
+                  title='Report Draft'
                 >
-                  <Info size={16} />
+                  <Flag size={16} />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent
-                side='right'
-                className='flex flex-col gap-2 whitespace-nowrap'
-              >
-                <div className='flex items-center gap-2'>
-                  <div className='flex items-center gap-1.5'>
-                    <div
-                      className={cn(
-                        'rounded px-2 py-0.5 font-medium transition-colors',
-                        series.fearlessDraft
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-muted/50 text-muted-foreground/50',
-                      )}
-                    >
-                      Fearless
-                    </div>
-                    {!series.fearlessDraft && (
-                      <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
-                        disabled
-                      </div>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      'transition-colors',
-                      series.fearlessDraft
-                        ? 'text-foreground'
-                        : 'text-muted-foreground/50',
-                    )}
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Report Draft</DialogTitle>
+                  <DialogDescription>
+                    Help us keep scoutahead.pro safe by reporting inappropriate
+                    behavior.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onReportSubmit)}
+                    className='space-y-4'
                   >
-                    Champions can only be picked once
-                  </span>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <div className='flex items-center gap-1.5'>
-                    <div
-                      className={cn(
-                        'rounded px-2 py-0.5 font-medium transition-colors',
-                        series.scrimBlock
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-muted/50 text-muted-foreground/50',
+                    <FormField
+                      control={form.control}
+                      name='reason'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reason</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder='Select a reason' />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.entries(reportReasons).map(
+                                ([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {label}
+                                  </SelectItem>
+                                ),
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                    >
-                      Scrim
+                    />
+                    <FormField
+                      control={form.control}
+                      name='details'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Additional Details (Optional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder='Any additional context that might help us understand the situation better'
+                              className='resize-none'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className='flex justify-end gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => setIsReportDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type='submit'
+                        variant='destructive'
+                        disabled={form.formState.isSubmitting}
+                      >
+                        Submit Report
+                      </Button>
                     </div>
-                    {!series.scrimBlock && (
-                      <div className='rounded bg-muted/30 px-1.5 py-0.5 text-xs text-muted-foreground/50'>
-                        disabled
-                      </div>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      'transition-colors',
-                      series.scrimBlock
-                        ? 'text-foreground'
-                        : 'text-muted-foreground/50',
-                    )}
-                  >
-                    All games must be played
-                  </span>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           <div className='flex gap-2'>
             {isSeriesOver && (
               <Button asChild>

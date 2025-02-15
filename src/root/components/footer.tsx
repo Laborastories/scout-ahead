@@ -8,6 +8,7 @@ import {
   Heart,
   XLogo,
   HandHeart,
+  Scales,
 } from '@phosphor-icons/react'
 import { usePrefetch } from '../../lib/utils'
 import { Button } from '../../client/components/ui/button'
@@ -117,6 +118,12 @@ export function Footer({ user, userLoading }: FooterProps) {
             </p>
           </div>
           <div className='flex items-center gap-4'>
+            <Link
+              to='/code-of-conduct'
+              className='inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground'
+            >
+              <Scales size={24} />
+            </Link>
             <a
               href='https://discord.gg/aPcNhT2mt6'
               target='_blank'
