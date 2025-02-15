@@ -144,8 +144,8 @@ query getChampionsFromDb {
   entities: [Champion]
 }
 
-action updateCurrentUser {
-  fn: import { updateCurrentUser } from "@src/root/operations",
+action updateCurrentUserLastActiveTimestamp {
+  fn: import { updateCurrentUserLastActiveTimestamp } from "@src/root/operations",
   entities: [User]
 }
 job fetchChampionsJob {

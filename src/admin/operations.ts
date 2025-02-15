@@ -311,13 +311,6 @@ export const updateReport: UpdateReport = async (args, context) => {
     },
   })
 
-  console.log('Updated report:', {
-    reportId: updatedReport.id,
-    status: updatedReport.status,
-    seriesId: updatedReport.series.id,
-    isBlocked: updatedReport.series.isBlocked,
-  })
-
   return updatedReport
 }
 
